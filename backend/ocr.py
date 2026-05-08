@@ -1,4 +1,4 @@
-# app/ocr.py
+# backend/ocr.py
 
 import pytesseract
 from PIL import Image

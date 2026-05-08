@@ -1,8 +1,11 @@
-# app/main.py
+# backend/main.py
+
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.ocr import extract_text
+
+from .ocr import extract_text
 import uvicorn
 
 app = FastAPI(
@@ -29,8 +32,9 @@ def health_check():
 @app.get("/test-ocr")
 def test_ocr():
     """Quick test endpoint — remove before production"""
-    result = extract_text("test_cert.jpg")
+    image_path = os.path.join(os.path.dirname(__file__), "test_cert.jpg")
+    result = extract_text(image_path)
     return result
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)

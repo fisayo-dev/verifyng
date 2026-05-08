@@ -26,7 +26,9 @@ billion annual problem: certificate fraud in hiring, admissions, and government 
    - Get all your environment variables set up
    - Run the development server: `npm run dev`
 2. Backend:
-   - 
+   - Change into the backend folder: `cd backend`
+   - Install Python dependencies: `pip install -r requirements.txt`
+   - Run the API: `uvicorn backend.main:app --reload`
 
 **Built for Squad Hackathon 3.0**
 
