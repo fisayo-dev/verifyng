@@ -6,7 +6,7 @@ VerifyNG is Nigeria's first AI-powered academic certificate verification platfor
 billion annual problem: certificate fraud in hiring, admissions, and government employment.
 
 ### Deployment
-[Click site](https://verifyng.vercel.app)
+[Live URL](https://verifyng.vercel.app)
 
 ## (Tech stack)
 1. Web - Next.js + Typescript
