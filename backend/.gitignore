@@ -1,0 +1,35 @@
+# Binary files
+*.jpg
+*.png
+*.jpeg
+*.gif
+*.mp4
+*.webm
+*.zip
+*.tar.gz
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
