@@ -11,7 +11,7 @@ billion annual problem: certificate fraud in hiring, admissions, and government 
 ## (Tech stack)
 1. Web - Next.js + Typescript
 2. Backend (API) - Python (Fast API)
-3. Backend (ML) - Langgraph
+3. Backend (ML) - Pytorch & Numpy
 
 ## Collaborators
 1. Team Lead - Olatunji Tobiloba
@@ -31,4 +31,3 @@ billion annual problem: certificate fraud in hiring, admissions, and government 
    - Run the API: `uvicorn backend.main:app --reload`
 
 **Built for Squad Hackathon 3.0**
-
