@@ -1,3 +1,11 @@
+---
+title: Verifyng Api
+colorFrom: gray
+colorTo: pink
+sdk: docker
+pinned: false
+---
+
 # Team Name: Finsense
 
 ## Project Name- VerifyNG
@@ -32,3 +40,4 @@ billion annual problem: certificate fraud in hiring, admissions, and government 
 
 **Built for Squad Hackathon 3.0**
 
+Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference

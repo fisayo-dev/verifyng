@@ -43,31 +43,34 @@ def perform_ela(image_path: str, quality: int = 90) -> dict:
         
         # Detect high-anomaly regions (potential edit zones)
         gray_diff = cv2.cvtColor(diff_normalized, cv2.COLOR_RGB2GRAY)
+        anomaly_threshold = max(25, float(np.percentile(gray_diff, 95)))
         _, high_anomaly_mask = cv2.threshold(
-            gray_diff, 127, 255, cv2.THRESH_BINARY
+            gray_diff, anomaly_threshold, 255, cv2.THRESH_BINARY
         )
         anomaly_pixel_ratio = float(
             np.sum(high_anomaly_mask > 0) / high_anomaly_mask.size
         )
         
         # Calculate final anomaly score (0–100)
-        # Weighted combination of metrics (boosted for small edits)
+        # Keep the background noise low, but reward concentrated edit spikes.
+        concentrated_artifact_boost = max_diff if max_diff > 50 else max_diff * 0.2
         raw_score = (
-            (mean_diff / 255 * 30) +      # Mean difference (30% weight)
-            (std_diff / 255 * 30) +        # Variance (30% weight)
-            (anomaly_pixel_ratio * 40)     # Anomaly region ratio (40% weight - prioritize localized edits)
+            (mean_diff * 5) +
+            (std_diff * 5) +
+            (anomaly_pixel_ratio * 20) +
+            concentrated_artifact_boost
         )
-        anomaly_score = min(round(raw_score * 100, 2), 100)
+        anomaly_score = min(round(raw_score, 2), 100)
         
-        # Determine risk level (tuned for small edits)
-        if anomaly_score < 14:
+        # Determine risk level
+        if anomaly_score < 30:
             risk_level = "LOW"
-        elif anomaly_score < 40:
+        elif anomaly_score < 60:
             risk_level = "MEDIUM"
         else:
             risk_level = "HIGH"
         
-        # Generate specific flags (tuned for small edits)
+        # Generate specific flags
         flags = []
         if mean_diff > 3:
             flags.append("Significant pixel-level inconsistencies detected")
