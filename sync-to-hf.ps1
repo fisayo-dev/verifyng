@@ -31,13 +31,11 @@ try {
         }
     }
     
+    # Get current branch from backend repo BEFORE changing directory
+    $currentBranch = git rev-parse --abbrev-ref HEAD
+    
     # Git commit and push in .hf-publish
     Push-Location $hfPath
-    
-    # Get current branch from backend repo
-    Push-Location $backendPath
-    $currentBranch = git rev-parse --abbrev-ref HEAD
-    Pop-Location
     
     Write-Host "Files copied. Checking git status..." -ForegroundColor Yellow
     $gitStatus = git status --porcelain
@@ -50,8 +48,9 @@ try {
         Write-Host "Committing to Hugging Face..." -ForegroundColor Yellow
         git commit -m "Sync from backend [$timestamp]"
         
-        Write-Host "Pushing to Hugging Face on branch: $currentBranch" -ForegroundColor Yellow
-        git push origin $currentBranch
+        # Always push to main on Hugging Face (HF only has main branch)
+        Write-Host "Pushing to Hugging Face (main branch)..." -ForegroundColor Yellow
+        git push origin main
         
         Write-Host "Sync complete! Changes pushed to Hugging Face" -ForegroundColor Green
     } else {
