@@ -1,1 +1,0 @@
-"""verifyng-backend application package."""
