@@ -4,10 +4,22 @@
     --background: #f9fafb;
     --foreground: #171717;
     --primary: #0066cc;
+    --muted: #a8b6ac;
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
     --gray: #6b7280;
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-muted: var(--muted);
+    --color-gray: var(--gray);
+    --color-primary: var(--primary);
+    --color-danger: var(--danger);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
 }
 
 body {
