@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Button from "../general/button";
 
 const Hero = () => {
   return (
@@ -17,8 +16,11 @@ const Hero = () => {
             platform.
           </p>
         </div>
-        <Link href="/verify">
-          <Button>Start Verification</Button>
+        <Link
+          href="/verify"
+          className="bg-primary px-5 py-3 rounded-full text-white hover:bg-primary/80 hover:cursor-pointer hover:scale-110 transition-all"
+        >
+          Start Verification
         </Link>
       </div>
     </div>

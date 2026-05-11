@@ -8,7 +8,7 @@ const Footer = () => {
             <p className="text-xl font-bold mb-4">Built for Squad Hackathon 3.0</p>
             <p>Fisayo Obadina</p>
             <p>Divine Aghulor</p>
-            <p>Olatunji Tobiloab</p>
+            <p>Olatunji Oluwatobiloba</p>
           </div>
         </div>
       </div>
