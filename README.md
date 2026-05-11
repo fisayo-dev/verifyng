@@ -31,8 +31,3 @@ billion annual problem: certificate fraud in hiring, admissions, and government 
    - Run the API: `uvicorn backend.main:app --reload`
 
 **Built for Squad Hackathon 3.0**
-<<<<<<< HEAD
-=======
-
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
->>>>>>> a94e7cd22f3c3fd4fa18efdcd30d2ab5073060c0
