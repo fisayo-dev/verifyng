@@ -11,8 +11,7 @@ const Header = () => {
           <span>VerifyNG</span>
         </Link>
         <div className="hidden md:flex items-center space-x-6 justify-center">
-          <p>Features</p>
-          <p>How to use</p>
+          <Link href="/#features">Features</Link>
         </div>
 
         <Button>Signup</Button>

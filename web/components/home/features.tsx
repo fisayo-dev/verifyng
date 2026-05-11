@@ -2,7 +2,7 @@ import { features } from "@/constants/general";
 
 const Features = () => {
   return (
-    <div className="app-container ">
+    <section id="features" className="app-container scroll-mt-28">
       <div className="grid gap-6 mt-14 pb-10">
         <h2 className="text-4xl md:text-4xl text-center font-extrabold">Features</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -20,7 +20,7 @@ const Features = () => {
           ))}
         </div>
       </div>
-    </div>
+    </section>
   );
 };
 
