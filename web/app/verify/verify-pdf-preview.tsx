@@ -9,9 +9,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 
 type VerifyPdfPreviewProps = {
   file: File;
+  width?: number;
 };
 
-const VerifyPdfPreview = ({ file }: VerifyPdfPreviewProps) => {
+const VerifyPdfPreview = ({ file, width = 240 }: VerifyPdfPreviewProps) => {
   return (
     <Document
       file={file}
@@ -20,7 +21,7 @@ const VerifyPdfPreview = ({ file }: VerifyPdfPreviewProps) => {
     >
       <Page
         pageNumber={1}
-        width={240}
+        width={width}
         renderAnnotationLayer={false}
         renderTextLayer={false}
       />
