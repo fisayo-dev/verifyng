@@ -50,7 +50,7 @@ const VerifyUploadDropzone = () => {
   return (
     <div
       {...getRootProps()}
-      className={`mx-auto grid h-80 w-full cursor-pointer rounded-2xl border text-center transition-colors md:w-3xl ${
+      className={`mx-auto grid h-80 w-full cursor-pointer overflow-hidden rounded-2xl border text-center transition-colors md:w-3xl ${
         isDragActive
           ? "border-dashed border-gray"
           : "border-gray/30 hover:border-gray"
@@ -60,34 +60,38 @@ const VerifyUploadDropzone = () => {
     >
       <input {...getInputProps()} />
       {hasPreview ? (
-        <div className="grid h-full gap-3">
-          <div className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-black/5">
+        <div className="grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3">
+          <div className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl bg-black/5 p-3">
             {isImage && imagePreviewUrl ? (
-              <Image
-                src={imagePreviewUrl}
-                alt={selectedFile?.name ?? "Selected upload preview"}
-                fill
-                unoptimized
-                className="object-contain"
-              />
+              <div className="relative h-full w-full">
+                <Image
+                  src={imagePreviewUrl}
+                  alt={selectedFile?.name ?? "Selected upload preview"}
+                  fill
+                  unoptimized
+                  className="object-contain"
+                />
+              </div>
             ) : null}
             {isPdf && selectedFile ? (
-              <Document
-                file={selectedFile}
-                loading={
-                  <p className="text-sm text-gray">Loading PDF preview...</p>
-                }
-              >
-                <Page
-                  pageNumber={1}
-                  width={320}
-                  renderAnnotationLayer={false}
-                  renderTextLayer={false}
-                />
-              </Document>
+              <div className="flex h-full w-full items-center justify-center overflow-hidden">
+                <Document
+                  file={selectedFile}
+                  loading={
+                    <p className="text-sm text-gray">Loading PDF preview...</p>
+                  }
+                >
+                  <Page
+                    pageNumber={1}
+                    width={Math.min(280, typeof window === "undefined" ? 280 : window.innerWidth - 96)}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                  />
+                </Document>
+              </div>
             ) : null}
           </div>
-          <div className="grid gap-1">
+          <div className="grid min-h-0 gap-1 px-1">
             <p className="truncate text-base font-medium">{selectedFile?.name}</p>
             <p className="text-sm text-gray">
               Click or drop another file to replace it
