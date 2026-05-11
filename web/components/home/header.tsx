@@ -10,7 +10,7 @@ const Header = () => {
           <ShieldCheckIcon className="w-6 h-6 text-primary" />
           <span>VerifyNG</span>
         </Link>
-        <div className="flex items-center space-x-6 justify-center">
+        <div className="hidden md:flex items-center space-x-6 justify-center">
           <p>Features</p>
           <p>How to use</p>
         </div>
