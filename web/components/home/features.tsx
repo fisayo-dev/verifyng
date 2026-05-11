@@ -12,8 +12,8 @@ const Features = () => {
               className="grid gap-3 border hover:border-gray border-gray/50 rounded-2xl p-5"
             >
               <feature.icon className="h-8 w-8 text-primary" />
-              <h2 className="text-xl md:text-2xl font-bold ">{feature.title}</h2>
-              <p className="text-sm md:text-[1rem] text-gray">
+              <h2 className="text-xl font-bold ">{feature.title}</h2>
+              <p className="text-sm  text-gray">
                 {feature.description}
               </p>
             </div>

@@ -26,7 +26,7 @@ const Hero = () => {
       />
       <div className="grid h-full place-items-center">
         <div className="app-container flex flex-col place-items-center gap-6 text-center">
-          <div className="w-auto rounded-full border border-primary bg-primary/10 px-3 py-1 text-sm text-primary">
+          <div className="w-auto rounded-full border border-primary bg-primary/10 px-4 py-1 text-sm text-primary">
             Built for employees
           </div>
           <div className="grid gap-3">
