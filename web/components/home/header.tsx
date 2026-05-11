@@ -10,8 +10,8 @@ const Header = () => {
           <ShieldCheckIcon className="w-6 h-6 text-primary" />
           <span>VerifyNG</span>
         </Link>
-        <div className="hidden md:flex items-center space-x-6 justify-center">
-          <Link href="/#features">Features</Link>
+        <div className="hidden md:flex items-center justify-center">
+          <Link href="/#features" className="text-center">Features</Link>
         </div>
 
         <Button>Signup</Button>
