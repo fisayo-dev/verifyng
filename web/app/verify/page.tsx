@@ -1,5 +1,5 @@
 import { DocumentIcon } from "@heroicons/react/24/outline";
-import VerifyUploadDropzone from "./verify-upload-dropzone";
+import VerifyUploadDropzone from "@/components/verify/verify-upload-dropzone";
 import Button from "@/components/general/button";
 
 const VerifyPage = () => {
