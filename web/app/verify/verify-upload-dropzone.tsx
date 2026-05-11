@@ -110,8 +110,8 @@ const VerifyUploadDropzone = () => {
                 </div>
               ) : null}
               {isPdf && selectedFile ? (
-                <div className="flex h-full w-full items-center justify-center overflow-hidden">
-                  <VerifyPdfPreview file={selectedFile} />
+                <div className="h-full w-full overflow-hidden">
+                  <VerifyPdfPreview file={selectedFile} className="px-2 py-3" />
                 </div>
               ) : null}
             </button>
@@ -193,8 +193,12 @@ const VerifyUploadDropzone = () => {
                 </div>
               ) : null}
               {isPdf ? (
-                <div className="flex h-full w-full items-center justify-center overflow-auto">
-                  <VerifyPdfPreview file={selectedFile} width={560} />
+                <div className="h-full w-full overflow-hidden">
+                  <VerifyPdfPreview
+                    file={selectedFile}
+                    width={560}
+                    className="px-4 py-2"
+                  />
                 </div>
               ) : null}
             </div>
