@@ -1,15 +1,15 @@
 'use client';
 
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { PhotoIcon } from "@heroicons/react/24/outline";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
 import { useDropzone } from "react-dropzone";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+const VerifyPdfPreview = dynamic(() => import("./verify-pdf-preview"), {
+  ssr: false,
+  loading: () => <p className="text-sm text-gray">Loading PDF preview...</p>,
+});
 
 const VerifyUploadDropzone = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -75,19 +75,7 @@ const VerifyUploadDropzone = () => {
             ) : null}
             {isPdf && selectedFile ? (
               <div className="flex h-full w-full items-center justify-center overflow-hidden">
-                <Document
-                  file={selectedFile}
-                  loading={
-                    <p className="text-sm text-gray">Loading PDF preview...</p>
-                  }
-                >
-                  <Page
-                    pageNumber={1}
-                    width={Math.min(280, typeof window === "undefined" ? 280 : window.innerWidth - 96)}
-                    renderAnnotationLayer={false}
-                    renderTextLayer={false}
-                  />
-                </Document>
+                <VerifyPdfPreview file={selectedFile} />
               </div>
             ) : null}
           </div>
