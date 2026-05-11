@@ -76,7 +76,7 @@ const VerifyUploadDropzone = () => {
     <>
       <div
         {...getRootProps()}
-        className={`mx-auto grid h-80 w-full cursor-pointer overflow-hidden rounded-2xl border text-center transition-colors md:w-3xl ${
+        className={`mx-auto grid h-100 w-full cursor-pointer overflow-hidden rounded-2xl border text-center transition-colors md:w-3xl ${
           isDragActive
             ? "border-dashed border-gray"
             : "border-gray/30 hover:border-gray"
