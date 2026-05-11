@@ -1,4 +1,5 @@
 import { DocumentIcon } from "@heroicons/react/24/outline";
+import VerifyUploadDropzone from "./verify-upload-dropzone";
 
 const VerifyPage = () => {
   return (
@@ -7,11 +8,11 @@ const VerifyPage = () => {
         <div className="flex flex-col gap-3">
           <h2 className="text-4xl font-extrabold">Upload Certificate</h2>
           <p className="text-sm px-5 py-2 rounded-full bg-gray/20 w-fit mx-auto flex items-center gap-2">
-            <DocumentIcon className="w-5 h-5"/>
+            <DocumentIcon className="w-5 h-5" />
             <span>Image/PDF</span>
           </p>
         </div>
-        <div className="grid p-20 border border-gray/30 hover:border-gray rounded-2xl place-content-center h-80 w-full md:w-3xl mx-auto"></div>
+        <VerifyUploadDropzone />
       </div>
     </div>
   );
