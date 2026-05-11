@@ -5,7 +5,7 @@ const HomeLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div>
       <Header />
-      <div className="mt-50">{children}</div>
+      <div className="mt-20 py-20">{children}</div>
     </div>
   );
 };
