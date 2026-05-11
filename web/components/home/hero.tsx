@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const Hero = () => {
   return (
-    <div className="grid h-100 place-items-center mt-28">
+    <div className="grid h-full place-items-center my-28">
       <div className="app-container flex flex-col gap-6 text-center place-items-center">
         <div className="border border-primary py-1 px-3 text-sm rounded-full bg-primary/10 text-primary w-auto">
           Built for employees
