@@ -1,34 +1,48 @@
+import {
+  BanknotesIcon,
+  BoltIcon,
+  CheckBadgeIcon,
+  DocumentMagnifyingGlassIcon,
+  ShieldCheckIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
 import type { Features } from "@/types/features";
 
 export const features: Features[] = [
   {
-    title: "Comprehensive Insights",
+    title: "Deep Certificate Analysis",
     description:
-      "Get comprehensive verification insights on academic certificates.",
+      "Review each certificate with structured insights that highlight issuing institution details, credential patterns, and signals that need closer human attention.",
+    icon: DocumentMagnifyingGlassIcon,
   },
   {
-    title: "Affordable fee",
+    title: "Fast Verification Turnaround",
     description:
-      "Start verification analysis for as low as ₦500 per certificate.",
+      "Move from upload to verification outcome in minutes, reducing the long email chains and manual back-and-forth that usually delay candidate screening.",
+    icon: BoltIcon,
   },
   {
-    title: "Fast Verification",
+    title: "Fraud Risk Detection",
     description:
-      "Complete certifcate verification in seconds instead not days.",
+      "Flag suspicious edits, unusual formatting, and missing validation signals early so your team can focus its effort on the highest-risk submissions first.",
+    icon: ShieldCheckIcon,
   },
   {
-    title: "Powerful Checkout",
+    title: "Affordable Per-Certificate Pricing",
     description:
-      "Wonderful checkout experience with Squad's checkout UI & functionality.",
+      "Start verification at a cost that works for growing teams, with transparent pricing that makes routine credential checks easy to scale.",
+    icon: BanknotesIcon,
   },
   {
-    title: "Fast Verification",
+    title: "Employer-Ready Reports",
     description:
-      "Complete certifcate verification in seconds instead not days.",
+      "Generate clear verification summaries your HR, compliance, or admissions team can review quickly and use confidently in decision-making.",
+    icon: CheckBadgeIcon,
   },
   {
-    title: "Powerful Checkout",
+    title: "Built for Hiring Teams",
     description:
-      "Wonderful checkout experience with Squad's checkout UI & functionality.",
+      "Designed for recruiters, HR teams, and institutions that need a reliable workflow for handling multiple certificate checks without operational friction.",
+    icon: UserGroupIcon,
   },
 ];
