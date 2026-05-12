@@ -25,7 +25,11 @@ try {
     Write-Host "Copying files..." -ForegroundColor Yellow
     Get-ChildItem -Path $backendPath -Exclude $excludePatterns | ForEach-Object {
         if ($_.PSIsContainer) {
-            Copy-Item -Path $_.FullName -Destination "$hfPath\$($_.Name)" -Recurse -Force
+            $destination = "$hfPath\$($_.Name)"
+            if (-not (Test-Path $destination)) {
+                New-Item -ItemType Directory -Path $destination | Out-Null
+            }
+            Copy-Item -Path "$($_.FullName)\*" -Destination $destination -Recurse -Force
         } else {
             Copy-Item -Path $_.FullName -Destination "$hfPath\$($_.Name)" -Force
         }
