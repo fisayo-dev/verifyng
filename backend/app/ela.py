@@ -111,8 +111,8 @@ def check_metadata_consistency(image_path: str) -> dict:
     try:
         from PIL.ExifTags import TAGS
         
-        image = Image.open(image_path)
-        exif_data = image._getexif()
+        with Image.open(image_path) as image:
+            exif_data = image._getexif()
         
         flags = []
         metadata = {}
@@ -138,7 +138,9 @@ def check_metadata_consistency(image_path: str) -> dict:
             if datetime_str:
                 metadata["creation_detected"] = datetime_str
         else:
-            flags.append("No EXIF metadata found — may indicate processing")
+            flags.append(
+                "Image metadata unavailable, common for PDF conversions or scanned documents"
+            )
         
         return {
             "success": True,
@@ -236,3 +238,58 @@ def detect_blocking_artifacts(gray_image: np.ndarray) -> float:
     
     avg_boundary_diff = (horizontal_diff + vertical_diff) / count
     return min(avg_boundary_diff / 50, 1.0)  # Normalize to 0–1
+
+
+def calculate_visual_trust_score(ela_result: dict, meta_result: dict, visual_result: dict) -> dict:
+    """
+    Aggregate visual forensics analysis into a single trust score.
+    
+    Combines ELA anomaly detection, metadata consistency, and visual consistency.
+    
+    Returns:
+        trust_score: 0–100 (higher = more trustworthy)
+        flags: list of all issues found across all layers
+    """
+    score = 100
+    all_flags = []
+    
+    # ELA Analysis: anomaly_score is 0-100 (higher = more tampered)
+    # Convert to trust impact: HIGH anomaly = big penalty
+    if ela_result.get("success"):
+        anomaly = ela_result.get("anomaly_score", 0)
+        score = 100 - anomaly
+        all_flags.extend(ela_result.get("flags", []))
+
+        if ela_result.get("risk_level") == "HIGH":
+            score -= 10
+        elif ela_result.get("risk_level") == "MEDIUM":
+            score -= 5
+    else:
+        score -= 15
+        all_flags.append("ELA analysis failed")
+    
+    # Metadata Consistency: check for suspicious edits
+    if meta_result.get("success"):
+        if meta_result.get("suspicious", False):
+            score -= 20
+        all_flags.extend(meta_result.get("flags", []))
+    else:
+        score -= 10
+        all_flags.append("Metadata check failed")
+    
+    # Visual Consistency: check for editing artifacts
+    if visual_result.get("success"):
+        all_flags.extend(visual_result.get("flags", []))
+        # Penalty per visual flag (each flag = -5 trust)
+        score -= len(visual_result.get("flags", [])) * 5
+    else:
+        score -= 10
+        all_flags.append("Visual analysis failed")
+    
+    # Ensure score is within bounds
+    final_score = max(0, min(100, round(score)))
+    
+    return {
+        "trust_score": final_score,
+        "flags": all_flags
+    }
