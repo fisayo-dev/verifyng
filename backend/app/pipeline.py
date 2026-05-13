@@ -5,6 +5,7 @@
 
 import logging
 import os
+import asyncio
 
 try:
     from .ocr import extract_text
@@ -32,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 async def trigger_ai_pipeline(verification_id: str) -> None:
     """
-    DIVINE CALLS THIS FUNCTION.
-    
+    DIVINE CALLS THIS FUNCTION. Wrapped with a 90-second timeout.
+
     Contract:
     - Input: verification_id (UUID string from verifications table)
     - Divine must have already:
@@ -48,39 +49,41 @@ async def trigger_ai_pipeline(verification_id: str) -> None:
     - Output: None (results written directly to Supabase)
     - Timeout: Must complete within 90 seconds
     """
-    logger.info(f"AI pipeline triggered → verification_id: {verification_id}")
+    logger.info(f"AI pipeline triggered -> verification_id: {verification_id}")
 
     try:
-        # Step 1: Get file info from Supabase
-        supabase = get_supabase()
-        record = supabase.table("verifications")\
-            .select("file_url, file_hash, status")\
-            .eq("id", verification_id)\
-            .single()\
-            .execute()
-
-        if not record.data:
-            logger.error(f"Verification record not found: {verification_id}")
-            return
-
-        file_url = record.data.get("file_url")
-        if not file_url:
-            logger.error(f"No file_url for verification: {verification_id}")
-            _mark_failed(verification_id, "No file found for this verification")
-            return
-
-        # Step 2: Download file to temp location
-        file_path = await _download_file(file_url, verification_id)
-        if not file_path:
-            _mark_failed(verification_id, "Could not download certificate file")
-            return
-
-        # Step 3: Run AI pipeline
-        await _run_pipeline(verification_id, file_path)
-
+        await asyncio.wait_for(
+            _run_pipeline_with_download(verification_id),
+            timeout=90.0,
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"Pipeline timeout -> {verification_id}")
+        _mark_failed(verification_id, "Analysis timed out. Please re-submit.")
     except Exception as e:
-        logger.error(f"Pipeline crashed → {verification_id}: {e}")
+        logger.error(f"Pipeline error -> {verification_id}: {e}")
         _mark_failed(verification_id, f"System error: {str(e)}")
+
+
+async def _run_pipeline_with_download(verification_id: str) -> None:
+    """Download file from Supabase Storage, then run the AI pipeline."""
+    supabase = get_supabase()
+    record = supabase.table("verifications")\
+        .select("file_url")\
+        .eq("id", verification_id)\
+        .single()\
+        .execute()
+
+    if not record.data or not record.data.get("file_url"):
+        logger.error(f"No file_url for verification: {verification_id}")
+        _mark_failed(verification_id, "No file found")
+        return
+
+    file_path = await _download_file(record.data["file_url"], verification_id)
+    if not file_path:
+        _mark_failed(verification_id, "File download failed")
+        return
+
+    await _run_pipeline(verification_id, file_path)
 
 
 async def _download_file(file_url: str, verification_id: str) -> str:
@@ -115,6 +118,7 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
     layers_run = []
     all_flags = []
     layer_scores = {}
+    failed_layers = 0
 
     try:
         # ── LAYER 1: Visual Forensics ──────────────────────────────
@@ -133,6 +137,7 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
         except Exception as e:
             logger.error(f"Layer 1 failed: {e}")
             all_flags.append("Visual analysis could not complete")
+            failed_layers += 1
 
         # ── LAYER 2: Content Validation ────────────────────────────
         try:
@@ -149,18 +154,25 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
                     f"institution: {content.get('detected_institution')}"
                 )
             else:
+                content = validate_certificate_content("")
+                layer_scores["content"] = content["content_score"]
+                all_flags.extend(content["flags"])
+                layers_run.append("content_validation")
                 all_flags.append(f"OCR failed: {ocr.get('error', 'unknown')}")
+                failed_layers += 1
 
         except Exception as e:
             logger.error(f"Layer 2 failed: {e}")
             all_flags.append("Content extraction could not complete")
+            failed_layers += 1
 
         # ── AGGREGATE ──────────────────────────────────────────────
         final_score = _aggregate_scores(layer_scores)
         verdict = _determine_verdict(final_score)
+        successful_layers = max(0, len(layers_run) - failed_layers)
         confidence = (
-            "HIGH" if len(layers_run) == 2
-            else "MEDIUM" if len(layers_run) == 1
+            "HIGH" if successful_layers >= 2
+            else "MEDIUM" if successful_layers == 1
             else "LOW"
         )
 
@@ -213,7 +225,15 @@ def _aggregate_scores(layer_scores: dict) -> int:
         for k in layer_scores
     )
     total_weight = sum(weights.get(k, 0.5) for k in layer_scores)
-    return round(weighted_sum / total_weight) if total_weight else 0
+    final_score = round(weighted_sum / total_weight) if total_weight else 0
+
+    if layer_scores.get("content", 100) <= 20:
+        final_score = min(final_score, 50)
+
+    if layer_scores.get("visual", 100) < 75:
+        final_score = min(final_score, 74)
+
+    return final_score
 
 
 def _determine_verdict(score: int) -> str:

@@ -1,10 +1,24 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from backend.app.pipeline import _run_pipeline
+from backend.app.pipeline import (
+    _aggregate_scores,
+    _run_pipeline,
+    _run_pipeline_with_download,
+    trigger_ai_pipeline,
+)
 
 
 class PipelineTests(unittest.IsolatedAsyncioTestCase):
+    def test_low_visual_score_caps_final_score_below_authentic(self):
+        score = _aggregate_scores({
+            "visual": 68,
+            "content": 100,
+        })
+
+        self.assertLess(score, 75)
+
     async def test_ocr_failure_contributes_low_content_score(self):
         captured = {}
 
@@ -34,12 +48,77 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
                 patch("backend.app.pipeline.os.path.exists", return_value=False):
             await _run_pipeline("job-id", "blank.jpg")
 
-        self.assertEqual(captured["trust_score"], 80)
-        self.assertEqual(captured["layers_analyzed"], ["visual_forensics"])
+        self.assertLessEqual(captured["trust_score"], 50)
+        self.assertEqual(
+            captured["layers_analyzed"],
+            ["visual_forensics", "content_validation"],
+        )
         self.assertIn(
             "OCR failed: Image quality too low",
             captured["flags"],
         )
+        self.assertIn(
+            "Insufficient text extracted from document",
+            captured["flags"],
+        )
+        self.assertEqual(captured["confidence"], "MEDIUM")
+
+    async def test_trigger_marks_failed_when_pipeline_times_out(self):
+        captured = {}
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
+
+        async def raise_timeout(coro, timeout):
+            coro.close()
+            raise TimeoutError
+
+        with patch("backend.app.pipeline.asyncio.wait_for", side_effect=raise_timeout), \
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
+            await trigger_ai_pipeline("job-id")
+
+        self.assertEqual(captured, {
+            "verification_id": "job-id",
+            "reason": "Analysis timed out. Please re-submit.",
+        })
+
+    async def test_run_pipeline_with_download_marks_failed_when_file_url_missing(self):
+        captured = {}
+        supabase = _FakeSupabase({"id": "job-id", "file_url": None})
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
+
+        with patch("backend.app.pipeline.get_supabase", return_value=supabase), \
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
+            await _run_pipeline_with_download("job-id")
+
+        self.assertEqual(captured, {
+            "verification_id": "job-id",
+            "reason": "No file found",
+        })
+
+
+class _FakeSupabase:
+    def __init__(self, record):
+        self.record = record
+
+    def table(self, name):
+        return self
+
+    def select(self, columns):
+        return self
+
+    def eq(self, column, value):
+        return self
+
+    def single(self):
+        return self
+
+    def execute(self):
+        return SimpleNamespace(data=self.record)
 
 
 if __name__ == "__main__":
