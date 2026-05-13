@@ -1,10 +1,12 @@
 import axios from "axios";
 
-const baseURL = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "");
+const fallbackBaseURL = "https://olatunjitobi-verifyng-api.hf.space";
+const baseURL =
+  process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "") || fallbackBaseURL;
 
 const api = axios.create({
   baseURL,
-  withCredentials: true,
+  timeout: 30000,
 });
 
 export default api;

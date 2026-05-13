@@ -15,15 +15,24 @@ const VerifyPdfPreview = dynamic(() => import("./verify-pdf-preview"), {
   loading: () => <p className="text-sm text-gray">Loading PDF preview...</p>,
 });
 
-const VerifyUploadDropzone = () => {
+interface VerifyUploadDropzoneProps {
+  onFileSelect?: (file: File | null) => void;
+}
+
+const VerifyUploadDropzone = ({
+  onFileSelect,
+}: VerifyUploadDropzoneProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const [firstFile] = acceptedFiles;
-    setSelectedFile(firstFile ?? null);
+    const nextFile = firstFile ?? null;
+
+    setSelectedFile(nextFile);
+    onFileSelect?.(nextFile);
     setIsPreviewOpen(false);
-  }, []);
+  }, [onFileSelect]);
 
   const isImage = selectedFile?.type.startsWith("image/") ?? false;
   const isPdf = selectedFile?.type === "application/pdf";
@@ -78,8 +87,8 @@ const VerifyUploadDropzone = () => {
         {...getRootProps()}
         className={`mx-auto grid h-100 w-full cursor-pointer overflow-hidden rounded-2xl border text-center transition-colors md:w-3xl ${
           isDragActive
-            ? "border-dashed border-gray"
-            : "border-gray/30 hover:border-gray"
+            ? "border-dashed  border-primary"
+            : "border-primary/50 hover:border-primary/80"
         } ${
           hasPreview ? "place-items-stretch p-4" : "place-content-center p-20"
         }`}

@@ -1,8 +1,15 @@
-import { ReactNode } from "react";
+import { ButtonHTMLAttributes, ReactNode } from "react";
 
-const Button = ({ children }: { children: ReactNode }) => {
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  children: ReactNode;
+}
+
+const Button = ({ children, className = "", ...props }: ButtonProps) => {
   return (
-    <button className="bg-primary px-5 py-3 rounded-full text-white hover:bg-primary/80 hover:cursor-pointer hover:scale-110 transition-all">
+    <button
+      className={`rounded-full bg-primary px-5 py-3 text-white transition-all hover:cursor-pointer hover:scale-110 hover:bg-primary/80 disabled:hover:cursor-not-allowed disabled:hover:scale-100 ${className}`}
+      {...props}
+    >
       {children}
     </button>
   );
