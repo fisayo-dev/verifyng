@@ -1,5 +1,6 @@
 import logging
 import os
+import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 @router.get("/api/result/{verification_id}")
 def get_result(verification_id: str):
     """Fisayo polls this every 3 seconds."""
+    _raise_not_found_if_invalid_uuid(verification_id)
     supabase = get_supabase()
 
     record = supabase.table("verifications")\
@@ -65,6 +67,7 @@ def get_result(verification_id: str):
 @router.get("/api/report/{verification_id}")
 def get_report(verification_id: str):
     """Return the generated PDF report URL after verification completes."""
+    _raise_not_found_if_invalid_uuid(verification_id)
     supabase = get_supabase()
 
     record = supabase.table("verifications")\
@@ -108,6 +111,8 @@ async def manual_trigger(
     if not expected_api_key or provided_api_key != expected_api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
+    _raise_not_found_if_invalid_uuid(verification_id, message="Job not found")
+
     supabase = get_supabase()
     record = supabase.table("verifications")\
         .select("id, status, file_url")\
@@ -135,3 +140,16 @@ async def manual_trigger(
         "verification_id": verification_id,
         "poll_url": f"/api/result/{verification_id}",
     }
+
+
+def _raise_not_found_if_invalid_uuid(
+    verification_id: str,
+    message: str = "Verification ID not found",
+) -> None:
+    try:
+        uuid.UUID(verification_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail={
+            "error": "NOT_FOUND",
+            "message": message,
+        })
