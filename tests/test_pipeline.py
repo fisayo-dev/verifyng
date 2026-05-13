@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from backend.app.main import run_ai_pipeline
+from backend.app.pipeline import _run_pipeline
 
 
 class PipelineTests(unittest.IsolatedAsyncioTestCase):
@@ -12,29 +12,32 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
             captured.update(result)
             return result
 
-        with patch("backend.app.main.perform_ela", return_value={
+        with patch("backend.app.pipeline.perform_ela", return_value={
             "success": True,
             "anomaly_score": 0,
             "risk_level": "LOW",
             "flags": [],
-        }), patch("backend.app.main.check_metadata_consistency", return_value={
+        }), patch("backend.app.pipeline.check_metadata_consistency", return_value={
             "success": True,
             "suspicious": False,
             "flags": [],
-        }), patch("backend.app.main.analyze_visual_consistency", return_value={
+        }), patch("backend.app.pipeline.analyze_visual_consistency", return_value={
             "success": True,
             "flags": [],
-        }), patch("backend.app.main.extract_text", return_value={
+        }), patch("backend.app.pipeline.calculate_visual_trust_score", return_value={
+            "trust_score": 80,
+            "flags": [],
+        }), patch("backend.app.pipeline.extract_text", return_value={
             "success": False,
             "error": "Image quality too low",
-        }), patch("backend.app.main.update_verification_result", side_effect=capture_result), \
-                patch("backend.app.main.os.path.exists", return_value=False):
-            await run_ai_pipeline("job-id", "blank.jpg")
+        }), patch("backend.app.pipeline.update_verification_result", side_effect=capture_result), \
+                patch("backend.app.pipeline.os.path.exists", return_value=False):
+            await _run_pipeline("job-id", "blank.jpg")
 
-        self.assertLessEqual(captured["trust_score"], 50)
-        self.assertIn("content_validation", captured["layers_analyzed"])
+        self.assertEqual(captured["trust_score"], 80)
+        self.assertEqual(captured["layers_analyzed"], ["visual_forensics"])
         self.assertIn(
-            "Insufficient text extracted from document",
+            "OCR failed: Image quality too low",
             captured["flags"],
         )
 

@@ -1,4 +1,3 @@
-import io
 import unittest
 import uuid
 from unittest.mock import patch
@@ -11,77 +10,44 @@ from backend.app.main import app
 client = TestClient(app)
 
 
-async def noop_pipeline(job_id: str, file_path: str):
-    return None
-
-
 class VerifyFlowTests(unittest.TestCase):
-    def test_verify_returns_processing_job_response(self):
-        job_id = "550e8400-e29b-41d4-a716-446655440000"
+    def test_verify_is_divine_owned_stub(self):
+        response = client.post("/verify")
 
-        with patch("backend.app.main.create_verification_job") as create_job, \
-                patch("backend.app.main.create_payment_record") as create_payment, \
-                patch("backend.app.main.run_ai_pipeline", noop_pipeline):
-            create_job.return_value = {
-                "job_id": job_id,
-                "cached": False,
-                "data": {"id": job_id, "status": "pending"},
-            }
-            create_payment.return_value = {
-                "squad_ref": "VNG-550e8400",
-                "status": "pending",
-            }
+        self.assertEqual(response.status_code, 501)
+        self.assertEqual(response.json(), {
+            "detail": "Divine owns the full /verify implementation. Call /trigger/{job_id} after payment and upload are complete."
+        })
 
-            response = client.post(
-                "/verify",
-                files={"file": ("test_cert.jpg", io.BytesIO(b"fake image bytes"), "image/jpeg")},
-            )
+    def test_old_ai_test_endpoints_are_removed(self):
+        self.assertEqual(client.get("/").status_code, 404)
+        self.assertEqual(client.get("/test-ocr").status_code, 404)
+        self.assertEqual(client.get("/test-ela").status_code, 404)
+
+    def test_trigger_queues_pipeline_demo_task(self):
+        job_id = str(uuid.uuid4())
+
+        with patch("backend.app.main.trigger_ai_pipeline") as trigger_pipeline:
+            response = client.post(f"/trigger/{job_id}")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             "job_id": job_id,
-            "squad_ref": "VNG-550e8400",
-            "payment_amount": 500,
-            "currency": "NGN",
-            "cached": False,
-            "status": "processing",
-            "message": "Certificate received. Processing started.",
-            "poll_url": f"/result/{job_id}",
+            "status": "PROCESSING",
+            "message": "AI pipeline queued for demo trigger.",
         })
-        create_job.assert_called_once()
-        create_payment.assert_called_once_with("VNG-550e8400", job_id)
-
-    def test_verify_returns_cached_true_for_existing_file(self):
-        job_id = "550e8400-e29b-41d4-a716-446655440000"
-
-        with patch("backend.app.main.create_verification_job") as create_job, \
-                patch("backend.app.main.create_payment_record"), \
-                patch("backend.app.main.run_ai_pipeline", noop_pipeline):
-            create_job.return_value = {
-                "job_id": job_id,
-                "cached": True,
-                "data": {"id": job_id, "status": "completed"},
-            }
-
-            response = client.post(
-                "/verify",
-                files={"file": ("test_cert.jpg", io.BytesIO(b"same image bytes"), "image/jpeg")},
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.json()["cached"])
-        self.assertEqual(response.json()["job_id"], job_id)
+        trigger_pipeline.assert_called_once_with(job_id)
 
     def test_result_returns_stored_verification_job(self):
         job_id = str(uuid.uuid4())
         stored_result = {
             "id": job_id,
-            "status": "completed",
+            "status": "COMPLETE",
             "file_hash": "abc123",
             "trust_score": 82,
             "verdict": "LIKELY AUTHENTIC",
             "flags": [],
-            "layers_analyzed": ["visual_forensics", "content_validation"],
+            "layers_run": ["visual_forensics", "content_validation"],
             "confidence": "HIGH",
             "file_name": "test_cert.jpg",
             "created_at": "2026-05-12T10:34:41.062123+00:00",
@@ -98,9 +64,9 @@ class VerifyFlowTests(unittest.TestCase):
             "trust_score": 82,
             "verdict": "LIKELY AUTHENTIC",
             "flags": [],
-            "layers_analyzed": ["visual_forensics", "content_validation"],
+            "layers_run": ["visual_forensics", "content_validation"],
             "confidence": "HIGH",
-            "status": "completed",
+            "status": "COMPLETE",
         }
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), expected_result)

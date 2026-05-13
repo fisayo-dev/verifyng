@@ -99,35 +99,46 @@ def create_verification_job(file_hash: str, file_name: str) -> dict:
     }
 
 
-def update_verification_result(job_id: str, result: dict) -> dict:
-    """Store AI analysis result."""
+def update_verification_result(verification_id: str, result: dict) -> dict:
+    """
+    Update verification record with AI pipeline results.
+    Called by trigger_ai_pipeline() after analysis completes.
+
+    Status values (from Divine's PRD):
+    PENDING_PAYMENT | PAID | PROCESSING | COMPLETE | FAILED
+    """
+    status = result.get("status", "COMPLETE")
+
+    if result.get("verdict") == "FAILED":
+        status = "FAILED"
+    elif result.get("trust_score") is not None:
+        status = "COMPLETE"
+
+    import datetime
+
+    update_data = {
+        "trust_score": result.get("trust_score"),
+        "verdict": result.get("verdict"),
+        "flags": result.get("flags", []),
+        "layers_run": result.get("layers_analyzed", []),
+        "confidence": result.get("confidence", "LOW"),
+        "status": status,
+        "completed_at": datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+
     if not has_supabase_config():
-        existing = _LOCAL_VERIFICATIONS.get(job_id)
+        existing = _LOCAL_VERIFICATIONS.get(verification_id)
         if not existing:
             return {}
 
-        existing.update({
-            "trust_score": result.get("trust_score"),
-            "verdict": result.get("verdict"),
-            "flags": result.get("flags", []),
-            "layers_analyzed": result.get("layers_analyzed", []),
-            "confidence": result.get("confidence", "MEDIUM"),
-            "status": "completed",
-            "updated_at": "now()",
-        })
+        existing.update(update_data)
         return existing
 
     supabase = get_supabase()
 
-    updated = supabase.table("verifications").update({
-        "trust_score": result.get("trust_score"),
-        "verdict": result.get("verdict"),
-        "flags": result.get("flags", []),
-        "layers_analyzed": result.get("layers_analyzed", []),
-        "confidence": result.get("confidence", "MEDIUM"),
-        "status": "completed",
-        "updated_at": "now()",
-    }).eq("id", job_id).execute()
+    updated = supabase.table("verifications").update(update_data)\
+        .eq("id", verification_id)\
+        .execute()
 
     return updated.data[0] if updated.data else {}
 
