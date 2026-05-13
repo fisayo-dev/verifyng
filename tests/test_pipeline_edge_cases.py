@@ -11,14 +11,22 @@ from backend.app.pipeline import (
 
 
 class PipelineEdgeCaseTests(unittest.IsolatedAsyncioTestCase):
-    async def test_invalid_verification_id_does_not_crash_or_write(self):
+    async def test_invalid_verification_id_marks_failed(self):
         supabase = _FakeSupabase(record=None)
+        captured = {}
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
 
         with patch("backend.app.pipeline.get_supabase", return_value=supabase), \
-                patch("backend.app.pipeline._mark_failed") as mark_failed:
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
             await trigger_ai_pipeline("non-existent-id")
 
-        mark_failed.assert_not_called()
+        self.assertEqual(captured, {
+            "verification_id": "non-existent-id",
+            "reason": "Verification record not found",
+        })
 
     async def test_missing_file_url_writes_failed(self):
         captured = {}
@@ -34,7 +42,7 @@ class PipelineEdgeCaseTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(captured, {
             "verification_id": "job-id",
-            "reason": "No file found",
+            "reason": "No file URL found. Upload may have failed.",
         })
 
     async def test_complete_job_is_idempotent_and_skipped(self):
@@ -71,7 +79,7 @@ class PipelineEdgeCaseTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(captured, {
             "verification_id": "job-id",
-            "reason": "File download failed",
+            "reason": "Could not download certificate file",
         })
 
     async def test_local_file_url_is_supported_for_simulation(self):

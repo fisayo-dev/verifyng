@@ -1,5 +1,10 @@
 .vscode/
+.idea/
 __pycache__/
 *.pyc
 venv/
 .hf-publish/
+simulate_divine.py
+harden_pipeline_inputs.py
+pipeline_hardening_samples/
+tomorrow_task.txt
