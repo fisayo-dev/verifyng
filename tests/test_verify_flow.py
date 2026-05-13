@@ -1,5 +1,6 @@
 import unittest
 import uuid
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -11,150 +12,214 @@ client = TestClient(app)
 
 
 class VerifyFlowTests(unittest.TestCase):
-    def test_verify_is_divine_owned_stub(self):
-        response = client.post("/verify")
+    def test_main_only_exposes_owned_routes(self):
+        self.assertEqual(client.get("/health").status_code, 200)
+        self.assertEqual(client.post("/verify").status_code, 404)
+        self.assertEqual(client.post("/api/verify").status_code, 404)
+        self.assertEqual(client.post("/api/webhook/squad").status_code, 404)
+        self.assertEqual(client.post(f"/trigger/{uuid.uuid4()}").status_code, 404)
 
-        self.assertEqual(response.status_code, 501)
-        self.assertEqual(response.json(), {
-            "detail": "Divine owns the full /verify implementation. Call /trigger/{job_id} after payment and upload are complete."
-        })
-
-    def test_old_ai_test_endpoints_are_removed(self):
-        self.assertEqual(client.get("/").status_code, 404)
-        self.assertEqual(client.get("/test-ocr").status_code, 404)
-        self.assertEqual(client.get("/test-ela").status_code, 404)
-
-    def test_trigger_queues_pipeline_demo_task(self):
+    def test_result_returns_processing_without_private_scores(self):
         job_id = str(uuid.uuid4())
-
-        with patch("backend.app.main.trigger_ai_pipeline") as trigger_pipeline:
-            response = client.post(f"/trigger/{job_id}")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {
-            "job_id": job_id,
-            "status": "PROCESSING",
-            "message": "AI pipeline queued for demo trigger.",
-        })
-        trigger_pipeline.assert_called_once_with(job_id)
-
-    def test_result_returns_stored_verification_job(self):
-        job_id = str(uuid.uuid4())
-        stored_result = {
-            "id": job_id,
-            "status": "COMPLETE",
-            "file_hash": "abc123",
-            "trust_score": 82,
-            "verdict": "LIKELY AUTHENTIC",
-            "flags": [],
-            "layers_run": ["visual_forensics", "content_validation"],
-            "confidence": "HIGH",
-            "file_name": "test_cert.jpg",
-            "created_at": "2026-05-12T10:34:41.062123+00:00",
-            "updated_at": "2026-05-12T17:46:59.175276+00:00",
-            "payments": [{"squad_ref": f"VNG-{job_id[:8]}", "status": "pending"}],
-        }
-
-        with patch("backend.app.main.get_verification_result", return_value=stored_result):
-            response = client.get(f"/result/{job_id}")
-
-        expected_result = {
-            "id": job_id,
-            "status": "COMPLETE",
-            "trust_score": 82,
-            "verdict": "LIKELY AUTHENTIC",
-            "flags": [],
-            "confidence": "HIGH",
-            "layers_run": ["visual_forensics", "content_validation"],
-        }
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), expected_result)
-        self.assertEqual(set(response.json()), set(expected_result))
-
-    def test_result_returns_pending_payment_contract(self):
-        job_id = str(uuid.uuid4())
-
-        with patch("backend.app.main.get_verification_result", return_value={
-            "id": job_id,
-            "status": "PENDING_PAYMENT",
-            "trust_score": None,
-            "verdict": None,
-            "flags": [],
-            "confidence": None,
-            "layers_run": [],
-        }):
-            response = client.get(f"/result/{job_id}")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "PENDING_PAYMENT"})
-
-    def test_result_returns_processing_contract(self):
-        job_id = str(uuid.uuid4())
-
-        with patch("backend.app.main.get_verification_result", return_value={
+        supabase = _FakeSupabase(select_data={
             "id": job_id,
             "status": "PROCESSING",
-            "trust_score": None,
-            "verdict": None,
-            "flags": [],
-            "confidence": None,
-            "layers_run": [],
-        }):
-            response = client.get(f"/result/{job_id}")
+            "trust_score": 82,
+            "verdict": "LIKELY AUTHENTIC",
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "PROCESSING"})
+        self.assertEqual(response.json(), {
+            "verification_id": job_id,
+            "status": "PROCESSING",
+            "message": "AI is analyzing your certificate...",
+        })
 
-    def test_result_returns_failed_contract(self):
+    def test_result_returns_failed_with_refund_eligible(self):
         job_id = str(uuid.uuid4())
-
-        with patch("backend.app.main.get_verification_result", return_value={
+        supabase = _FakeSupabase(select_data={
             "id": job_id,
             "status": "FAILED",
             "trust_score": None,
             "verdict": "FAILED",
-            "flags": ["Could not download certificate file"],
-            "confidence": "LOW",
-            "layers_run": [],
-        }):
-            response = client.get(f"/result/{job_id}")
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
+            "verification_id": job_id,
             "status": "FAILED",
-            "flags": ["Could not download certificate file"],
+            "message": "Verification failed. Please contact support.",
+            "refund_eligible": True,
+        })
+
+    def test_result_returns_complete_contract(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "COMPLETE",
+            "trust_score": 82,
+            "verdict": "LIKELY AUTHENTIC",
+            "flags": ["AI evidence: visual=80"],
+            "confidence": "HIGH",
+            "layers_run": ["visual_forensics", "content_validation"],
+            "report_url": "https://example.com/report.pdf",
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "verification_id": job_id,
+            "status": "COMPLETE",
+            "trust_score": 82,
+            "verdict": "LIKELY AUTHENTIC",
+            "flags": ["AI evidence: visual=80"],
+            "confidence": "HIGH",
+            "layers_run": ["visual_forensics", "content_validation"],
+            "report_url": "https://example.com/report.pdf",
         })
 
     def test_result_returns_404_when_job_is_missing(self):
         job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data=None)
 
-        with patch("backend.app.main.get_verification_result", return_value=None):
-            response = client.get(f"/result/{job_id}")
-
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "Verification job not found"})
-
-    def test_result_returns_404_for_invalid_job_id(self):
-        with patch("backend.app.main.get_verification_result") as get_result:
-            response = client.get("/result/fake-id-that-does-not-exist")
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
 
         self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "Verification job not found"})
-        get_result.assert_not_called()
+        self.assertEqual(response.json(), {
+            "detail": {
+                "error": "NOT_FOUND",
+                "message": "Verification ID not found",
+            }
+        })
 
-    def test_result_returns_503_when_database_is_unreachable(self):
+    def test_report_returns_url_only_after_completion(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "COMPLETE",
+            "report_url": "https://example.com/report.pdf",
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/report/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "verification_id": job_id,
+            "report_url": "https://example.com/report.pdf",
+        })
+
+    def test_report_returns_409_when_not_ready(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "PROCESSING",
+            "report_url": None,
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/report/{job_id}")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json(), {
+            "detail": {
+                "error": "REPORT_NOT_READY",
+                "message": "Report is not available until verification is complete.",
+            }
+        })
+
+    def test_manual_trigger_requires_configured_api_key(self):
         job_id = str(uuid.uuid4())
 
-        with patch(
-            "backend.app.main.get_verification_result",
-            side_effect=ConnectionError("database hostname could not be resolved"),
-        ):
-            response = client.get(f"/result/{job_id}")
+        with patch.dict("os.environ", {}, clear=True):
+            response = client.post(f"/api/trigger/{job_id}")
 
-        self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.json(), {
-            "detail": "Verification database is temporarily unavailable"
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"detail": "Invalid API key"})
+
+    def test_manual_trigger_rejects_missing_file_url(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "PAID",
+            "file_url": None,
         })
+
+        with patch.dict("os.environ", {"API_KEY": "secret"}, clear=True), \
+                patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.post(
+                f"/api/trigger/{job_id}",
+                headers={"X-API-Key": "secret"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"detail": "file_url is not set. Divine must upload the file first."},
+        )
+
+    def test_manual_trigger_sets_processing_and_queues_pipeline(self):
+        job_id = str(uuid.uuid4())
+        queued = []
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "PAID",
+            "file_url": "https://example.com/certificate.jpg",
+        })
+
+        async def capture_trigger(verification_id):
+            queued.append(verification_id)
+
+        with patch.dict("os.environ", {"API_KEY": "secret"}, clear=True), \
+                patch("backend.app.result.get_supabase", return_value=supabase), \
+                patch("backend.app.result.trigger_ai_pipeline", side_effect=capture_trigger):
+            response = client.post(
+                f"/api/trigger/{job_id}",
+                headers={"X-API-Key": "secret"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "status": "triggered",
+            "verification_id": job_id,
+            "poll_url": f"/api/result/{job_id}",
+        })
+        self.assertEqual(supabase.updated, {"status": "PROCESSING"})
+        self.assertEqual(queued, [job_id])
+
+
+class _FakeSupabase:
+    def __init__(self, select_data):
+        self.select_data = select_data
+        self.updated = None
+
+    def table(self, name):
+        return self
+
+    def select(self, columns):
+        return self
+
+    def update(self, payload):
+        self.updated = payload
+        return self
+
+    def eq(self, column, value):
+        return self
+
+    def single(self):
+        return self
+
+    def execute(self):
+        return SimpleNamespace(data=self.select_data)
 
 
 if __name__ == "__main__":

@@ -70,29 +70,52 @@ async def trigger_ai_pipeline(verification_id: str) -> None:
 
 async def _run_pipeline_with_download(verification_id: str) -> None:
     """Download file from Supabase Storage, then run the AI pipeline."""
+    import httpx
+
     supabase = get_supabase()
-    record = supabase.table("verifications")\
-        .select("id, file_url, status")\
-        .eq("id", verification_id)\
-        .single()\
-        .execute()
+
+    try:
+        record = supabase.table("verifications")\
+            .select("id, file_url, status")\
+            .eq("id", verification_id)\
+            .single()\
+            .execute()
+    except Exception as e:
+        logger.error(f"Supabase read failed: {e}")
+        _mark_failed(verification_id, "Database read error")
+        return
 
     if not record.data:
         logger.error(f"No verification record found: {verification_id}")
+        _mark_failed(verification_id, "Verification record not found")
         return
 
     if record.data.get("status") == "COMPLETE":
         logger.info(f"Already COMPLETE, skipping pipeline: {verification_id}")
         return
 
-    if not record.data.get("file_url"):
+    file_url = record.data.get("file_url")
+    if not file_url:
         logger.error(f"No file_url for verification: {verification_id}")
-        _mark_failed(verification_id, "No file found")
+        _mark_failed(
+            verification_id,
+            "No file URL found. Upload may have failed.",
+        )
         return
 
-    file_path = await _download_file(record.data["file_url"], verification_id)
+    try:
+        file_path = await _download_file(file_url, verification_id)
+    except httpx.TimeoutException:
+        logger.error(f"File download timed out: {file_url}")
+        _mark_failed(verification_id, "File download timed out")
+        return
+    except Exception as e:
+        logger.error(f"File download failed: {e}")
+        _mark_failed(verification_id, "Could not download certificate file")
+        return
+
     if not file_path:
-        _mark_failed(verification_id, "File download failed")
+        _mark_failed(verification_id, "Could not download certificate file")
         return
 
     await _run_pipeline(verification_id, file_path)
@@ -102,33 +125,28 @@ async def _download_file(file_url: str, verification_id: str) -> str:
     """Download file from Supabase Storage to /tmp"""
     import httpx
 
-    try:
-        if file_url.startswith("file://"):
-            return file_url.replace("file:///", "", 1).replace("file://", "", 1)
+    if file_url.startswith("file://"):
+        return file_url.replace("file:///", "", 1).replace("file://", "", 1)
 
-        if "://" not in file_url:
-            return file_url
+    if "://" not in file_url:
+        return file_url
 
-        tmp_dir = "/tmp/verifyng"
-        os.makedirs(tmp_dir, exist_ok=True)
+    tmp_dir = "/tmp/verifyng"
+    os.makedirs(tmp_dir, exist_ok=True)
 
-        # Determine extension from URL
-        ext = os.path.splitext(file_url.split("?")[0])[1] or ".jpg"
-        tmp_path = f"{tmp_dir}/{verification_id}{ext}"
+    # Determine extension from URL
+    ext = os.path.splitext(file_url.split("?")[0])[1] or ".jpg"
+    tmp_path = f"{tmp_dir}/{verification_id}{ext}"
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(file_url, timeout=30.0)
-            response.raise_for_status()
+    async with httpx.AsyncClient() as client:
+        response = await client.get(file_url, timeout=30.0)
+        response.raise_for_status()
 
-            with open(tmp_path, "wb") as f:
-                f.write(response.content)
+        with open(tmp_path, "wb") as f:
+            f.write(response.content)
 
-        logger.info(f"File downloaded: {tmp_path}")
-        return tmp_path
-
-    except Exception as e:
-        logger.error(f"File download failed: {e}")
-        return None
+    logger.info(f"File downloaded: {tmp_path}")
+    return tmp_path
 
 
 async def _run_pipeline(verification_id: str, file_path: str) -> None:
@@ -247,6 +265,7 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
                 "layers_analyzed": [],
                 "confidence": "LOW",
                 "status": "FAILED",
+                "completed_at": "now()",
             })
             return
 
@@ -272,7 +291,8 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
             "verdict": verdict,
             "flags": list(dict.fromkeys(all_flags)),
             "layers_analyzed": layers_run,
-            "confidence": confidence
+            "confidence": confidence,
+            "completed_at": "now()",
         })
 
         logger.info(
@@ -299,7 +319,8 @@ def _mark_failed(verification_id: str, reason: str) -> None:
             "flags": [reason],
             "layers_analyzed": [],
             "confidence": "LOW",
-            "status": "FAILED"
+            "status": "FAILED",
+            "completed_at": "now()",
         })
         logger.info(f"Marked as FAILED → {verification_id}: {reason}")
     except Exception as e:

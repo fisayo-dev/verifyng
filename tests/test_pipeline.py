@@ -1,6 +1,8 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+
+import httpx
 
 from backend.app.pipeline import (
     _aggregate_scores,
@@ -189,7 +191,91 @@ class PipelineTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(captured, {
             "verification_id": "job-id",
-            "reason": "No file found",
+            "reason": "No file URL found. Upload may have failed.",
+        })
+
+    async def test_run_pipeline_with_download_marks_failed_when_read_fails(self):
+        captured = {}
+        supabase = _FailingSupabase(RuntimeError("database unavailable"))
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
+
+        with patch("backend.app.pipeline.get_supabase", return_value=supabase), \
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
+            await _run_pipeline_with_download("job-id")
+
+        self.assertEqual(captured, {
+            "verification_id": "job-id",
+            "reason": "Database read error",
+        })
+
+    async def test_run_pipeline_with_download_marks_failed_when_record_missing(self):
+        captured = {}
+        supabase = _FakeSupabase(None)
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
+
+        with patch("backend.app.pipeline.get_supabase", return_value=supabase), \
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
+            await _run_pipeline_with_download("job-id")
+
+        self.assertEqual(captured, {
+            "verification_id": "job-id",
+            "reason": "Verification record not found",
+        })
+
+    async def test_run_pipeline_with_download_marks_failed_when_download_times_out(self):
+        captured = {}
+        supabase = _FakeSupabase({
+            "id": "job-id",
+            "status": "PROCESSING",
+            "file_url": "https://example.com/cert.jpg",
+        })
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
+
+        with patch("backend.app.pipeline.get_supabase", return_value=supabase), \
+                patch(
+                    "backend.app.pipeline._download_file",
+                    new=AsyncMock(side_effect=httpx.TimeoutException("too slow")),
+                ), \
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
+            await _run_pipeline_with_download("job-id")
+
+        self.assertEqual(captured, {
+            "verification_id": "job-id",
+            "reason": "File download timed out",
+        })
+
+    async def test_run_pipeline_with_download_marks_failed_when_download_fails(self):
+        captured = {}
+        supabase = _FakeSupabase({
+            "id": "job-id",
+            "status": "PROCESSING",
+            "file_url": "https://example.com/cert.jpg",
+        })
+
+        def capture_failed(verification_id, reason):
+            captured["verification_id"] = verification_id
+            captured["reason"] = reason
+
+        with patch("backend.app.pipeline.get_supabase", return_value=supabase), \
+                patch(
+                    "backend.app.pipeline._download_file",
+                    new=AsyncMock(side_effect=RuntimeError("bad status")),
+                ), \
+                patch("backend.app.pipeline._mark_failed", side_effect=capture_failed):
+            await _run_pipeline_with_download("job-id")
+
+        self.assertEqual(captured, {
+            "verification_id": "job-id",
+            "reason": "Could not download certificate file",
         })
 
 
@@ -211,6 +297,14 @@ class _FakeSupabase:
 
     def execute(self):
         return SimpleNamespace(data=self.record)
+
+
+class _FailingSupabase(_FakeSupabase):
+    def __init__(self, error):
+        self.error = error
+
+    def execute(self):
+        raise self.error
 
 
 if __name__ == "__main__":
