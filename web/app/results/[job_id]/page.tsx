@@ -1,4 +1,4 @@
-import ResultDetailsClient from "@/app/results/_components/result-details-client";
+import ResultDetailsClient from "@/components/results/result-details-client";
 
 const ResultDetailsPage = async (props: PageProps<"/results/[job_id]">) => {
   const params = await props.params;

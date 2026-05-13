@@ -1,16 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { DocumentIcon, SparklesIcon } from "@heroicons/react/24/outline";
-import Button from "@/components/general/button";
+import { DocumentIcon } from "@heroicons/react/24/outline";
 import VerifyUploadDropzone from "@/components/verify/verify-upload-dropzone";
 
 const demoJobId = process.env.NEXT_PUBLIC_TEST_JOB_ID?.trim() ?? "";
 
 const VerifyWorkspace = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
   return (
     <div className="app-container grid gap-8 pb-20">
       <div className="grid gap-3 text-center">
@@ -23,8 +19,7 @@ const VerifyWorkspace = () => {
 
       <div className="grid gap-6 ">
         <section className="grid gap-5 rounded-4xl border border-foreground/8 bg-white p-6 shadow-[0_20px_60px_-48px_rgba(23,23,23,0.35)]">
-          <VerifyUploadDropzone onFileSelect={setSelectedFile} />
-          
+          <VerifyUploadDropzone />
 
           {demoJobId ? (
             <Link

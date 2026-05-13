@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import ResultDetailsPanel from "@/app/results/_components/result-details-panel";
+import ResultDetailsPanel from "@/components/results/result-details-panel";
 import { getVerificationResult } from "@/lib/verification";
 import type { VerificationResult } from "@/types/verification";
 
