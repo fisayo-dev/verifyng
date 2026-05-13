@@ -16,6 +16,8 @@ try:
     )
     from .scorer import calculate_visual_trust_score
     from .content_validator import validate_certificate_content
+    from .ai_depth import build_ai_evidence_report, score_template_match
+    from .ml_model import classify_certificate
     from .database import update_verification_result, get_supabase
 except ImportError:
     from app.ocr import extract_text
@@ -26,6 +28,8 @@ except ImportError:
     )
     from app.scorer import calculate_visual_trust_score
     from app.content_validator import validate_certificate_content
+    from app.ai_depth import build_ai_evidence_report, score_template_match
+    from app.ml_model import classify_certificate
     from app.database import update_verification_result, get_supabase
 
 logger = logging.getLogger(__name__)
@@ -68,12 +72,20 @@ async def _run_pipeline_with_download(verification_id: str) -> None:
     """Download file from Supabase Storage, then run the AI pipeline."""
     supabase = get_supabase()
     record = supabase.table("verifications")\
-        .select("file_url")\
+        .select("id, file_url, status")\
         .eq("id", verification_id)\
         .single()\
         .execute()
 
-    if not record.data or not record.data.get("file_url"):
+    if not record.data:
+        logger.error(f"No verification record found: {verification_id}")
+        return
+
+    if record.data.get("status") == "COMPLETE":
+        logger.info(f"Already COMPLETE, skipping pipeline: {verification_id}")
+        return
+
+    if not record.data.get("file_url"):
         logger.error(f"No file_url for verification: {verification_id}")
         _mark_failed(verification_id, "No file found")
         return
@@ -91,6 +103,12 @@ async def _download_file(file_url: str, verification_id: str) -> str:
     import httpx
 
     try:
+        if file_url.startswith("file://"):
+            return file_url.replace("file:///", "", 1).replace("file://", "", 1)
+
+        if "://" not in file_url:
+            return file_url
+
         tmp_dir = "/tmp/verifyng"
         os.makedirs(tmp_dir, exist_ok=True)
 
@@ -119,6 +137,10 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
     all_flags = []
     layer_scores = {}
     failed_layers = 0
+    ela = {}
+    meta = {}
+    ocr = {}
+    template = {"template_score": 0, "field_scores": {}, "flags": []}
 
     try:
         # ── LAYER 1: Visual Forensics ──────────────────────────────
@@ -129,6 +151,10 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
             visual_trust = calculate_visual_trust_score(ela, meta, visual)
 
             layer_scores["visual"] = visual_trust["trust_score"]
+            layer_scores["extreme_visual_tamper"] = _has_extreme_visual_tamper(
+                ela,
+                visual_trust,
+            )
             all_flags.extend(visual_trust["flags"])
             layers_run.append("visual_forensics")
 
@@ -149,6 +175,23 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
                 all_flags.extend(content["flags"])
                 layers_run.append("content_validation")
 
+                template = score_template_match(
+                    ocr["text"],
+                    ocr_confidence=ocr.get("confidence", 0),
+                )
+                layer_scores["template"] = template["template_score"]
+                all_flags.extend(template["flags"])
+                layers_run.append("template_layout_matching")
+
+                evidence = build_ai_evidence_report(
+                    visual_score=layer_scores.get("visual", 0),
+                    content_score=layer_scores["content"],
+                    template_result=template,
+                    ocr_result=ocr,
+                )
+                all_flags.extend(evidence["flags"])
+                all_flags.append(_format_evidence_flag(evidence))
+
                 logger.info(
                     f"Layer 2 done → score: {layer_scores['content']} | "
                     f"institution: {content.get('detected_institution')}"
@@ -158,18 +201,65 @@ async def _run_pipeline(verification_id: str, file_path: str) -> None:
                 layer_scores["content"] = content["content_score"]
                 all_flags.extend(content["flags"])
                 layers_run.append("content_validation")
+                template = score_template_match("", ocr_confidence=0)
+                layer_scores["template"] = template["template_score"]
+                all_flags.extend(template["flags"])
+                layers_run.append("template_layout_matching")
                 all_flags.append(f"OCR failed: {ocr.get('error', 'unknown')}")
-                failed_layers += 1
+                failed_layers += 2
 
         except Exception as e:
             logger.error(f"Layer 2 failed: {e}")
             all_flags.append("Content extraction could not complete")
             failed_layers += 1
 
+        # LAYER 4: Custom ML Authenticity Classifier
+        try:
+            ml_result = classify_certificate(_build_ml_features(
+                layer_scores=layer_scores,
+                ela=ela,
+                meta=meta,
+                ocr=ocr,
+                template=template,
+            ))
+            layer_scores["ml"] = round(
+                ml_result["ml_authenticity_probability"] * 100
+            )
+            layers_run.append("custom_ml_classifier")
+            all_flags.append(
+                "ML classifier: "
+                f"prediction={ml_result['ml_prediction']}, "
+                f"authenticity={ml_result['ml_authenticity_probability']}, "
+                f"model={ml_result['ml_model']}"
+            )
+        except Exception as e:
+            logger.error(f"Custom ML classifier failed: {e}")
+            all_flags.append("Custom ML classifier could not complete")
+            failed_layers += 1
+
+        if not layers_run:
+            update_verification_result(verification_id, {
+                "trust_score": None,
+                "verdict": "FAILED",
+                "flags": list(dict.fromkeys(all_flags)) or [
+                    "Pipeline could not analyze this file"
+                ],
+                "layers_analyzed": [],
+                "confidence": "LOW",
+                "status": "FAILED",
+            })
+            return
+
         # ── AGGREGATE ──────────────────────────────────────────────
         final_score = _aggregate_scores(layer_scores)
         verdict = _determine_verdict(final_score)
-        successful_layers = max(0, len(layers_run) - failed_layers)
+        successful_layers = sum(
+            1
+            for score in layer_scores.values()
+            if isinstance(score, (int, float))
+            and not isinstance(score, bool)
+            and score >= 50
+        )
         confidence = (
             "HIGH" if successful_layers >= 2
             else "MEDIUM" if successful_layers == 1
@@ -219,21 +309,90 @@ def _mark_failed(verification_id: str, reason: str) -> None:
 def _aggregate_scores(layer_scores: dict) -> int:
     if not layer_scores:
         return 0
-    weights = {"visual": 0.60, "content": 0.40}
+    weights = {"visual": 0.35, "content": 0.25, "template": 0.20, "ml": 0.20}
+    scored_layers = {
+        key: value
+        for key, value in layer_scores.items()
+        if key in weights
+    }
     weighted_sum = sum(
-        layer_scores[k] * weights.get(k, 0.5)
-        for k in layer_scores
+        scored_layers[k] * weights[k]
+        for k in scored_layers
     )
-    total_weight = sum(weights.get(k, 0.5) for k in layer_scores)
+    total_weight = sum(weights[k] for k in scored_layers)
     final_score = round(weighted_sum / total_weight) if total_weight else 0
 
     if layer_scores.get("content", 100) <= 20:
         final_score = min(final_score, 50)
 
-    if layer_scores.get("visual", 100) < 75:
+    if layer_scores.get("template", 100) <= 35:
+        final_score = min(final_score, 60)
+
+    if layer_scores.get("ml", 100) <= 35:
+        final_score = min(final_score, 65)
+
+    if layer_scores.get("extreme_visual_tamper"):
+        final_score = min(final_score, 49)
+    elif (
+        layer_scores.get("visual", 100) < 75
+        and not _has_strong_waec_evidence(layer_scores)
+    ):
         final_score = min(final_score, 74)
 
     return final_score
+
+
+def _has_strong_waec_evidence(layer_scores: dict) -> bool:
+    return (
+        layer_scores.get("content", 0) >= 85
+        and layer_scores.get("template", 0) >= 85
+        and ("ml" not in layer_scores or layer_scores.get("ml", 0) >= 70)
+        and layer_scores.get("visual", 0) >= 65
+    )
+
+
+def _build_ml_features(
+    layer_scores: dict,
+    ela: dict,
+    meta: dict,
+    ocr: dict,
+    template: dict,
+) -> dict:
+    missing_field_count = sum(
+        1
+        for score in template.get("field_scores", {}).values()
+        if score == 0
+    )
+    return {
+        "visual_score": layer_scores.get("visual", 0),
+        "content_score": layer_scores.get("content", 0),
+        "template_score": layer_scores.get("template", 0),
+        "ocr_confidence": ocr.get("confidence", 0) or 0,
+        "ela_anomaly_score": ela.get("anomaly_score", 0) or 0,
+        "metadata_suspicious": 1 if meta.get("suspicious") else 0,
+        "missing_field_count": missing_field_count,
+        "word_count": ocr.get("word_count", 0) or 0,
+    }
+
+
+def _has_extreme_visual_tamper(ela_result: dict, visual_trust: dict) -> bool:
+    return (
+        ela_result.get("risk_level") == "HIGH"
+        or "Extreme pixel differences found in specific regions"
+        in visual_trust.get("flags", [])
+    )
+
+
+def _format_evidence_flag(evidence: dict) -> str:
+    scores = evidence["signal_scores"]
+    return (
+        "AI evidence: "
+        f"visual={scores['visual_forensics']}, "
+        f"content={scores['content_validation']}, "
+        f"template={scores['template_match']}, "
+        f"ocr={scores['ocr_confidence']} | "
+        f"{evidence['judge_summary']}"
+    )
 
 
 def _determine_verdict(score: int) -> str:

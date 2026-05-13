@@ -30,7 +30,7 @@ def extract_text_from_image(image_path: str) -> dict:
     """Extract all text from a certificate image"""
     try:
         image = Image.open(image_path)
-        
+
         # Check quality first
         quality = check_image_quality(image)
         if not quality["is_acceptable"]:
@@ -39,36 +39,46 @@ def extract_text_from_image(image_path: str) -> dict:
                 "error": "Image quality too low",
                 "quality": quality
             }
-        
-        # Extract text
-        text = pytesseract.image_to_string(image)
-        
-        # Extract with confidence scores
-        data = pytesseract.image_to_data(
-            image, 
-            output_type=pytesseract.Output.DICT
-        )
-        
-        # Calculate average confidence
-        confidences = [
-            int(c) for c in data['conf'] 
-            if str(c).isdigit() and int(c) > 0
-        ]
-        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
-        
-        return {
-            "success": True,
-            "text": text.strip(),
-            "confidence": round(avg_confidence, 2),
-            "word_count": len(text.split()),
-            "quality": quality
-        }
-        
+
+        result = _extract_best_orientation(image)
+        result["quality"] = quality
+        return result
+
     except Exception as e:
         return {
             "success": False,
             "error": str(e)
         }
+
+
+def _extract_best_orientation(image: Image.Image) -> dict:
+    """Try common rotations and keep the highest-confidence OCR result."""
+    candidates = []
+    for angle in (0, 90, 180, 270):
+        rotated = image.rotate(angle, expand=True) if angle else image
+        text = pytesseract.image_to_string(rotated)
+        data = pytesseract.image_to_data(
+            rotated,
+            output_type=pytesseract.Output.DICT
+        )
+
+        confidences = [
+            int(c) for c in data["conf"]
+            if str(c).isdigit() and int(c) > 0
+        ]
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0
+        candidates.append({
+            "success": True,
+            "text": text.strip(),
+            "confidence": round(avg_confidence, 2),
+            "word_count": len(text.split()),
+            "orientation": angle,
+        })
+
+    return max(
+        candidates,
+        key=lambda item: (item["confidence"], item["word_count"])
+    )
 
 def extract_text_from_pdf(pdf_path: str) -> dict:
     """Extract text from a PDF certificate"""

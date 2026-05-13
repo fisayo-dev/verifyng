@@ -13,6 +13,12 @@ billion annual problem: certificate fraud in hiring, admissions, and government 
 2. Backend (API) - Python (Fast API)
 3. Backend (ML) - Pytorch & Numpy
 
+## AI Technical Depth
+VerifyNG uses a three-signal verification engine: visual forensics, OCR/content
+validation, and WAEC template/layout matching. See
+[AI_TECHNICAL_DEPTH.md](AI_TECHNICAL_DEPTH.md) for the signal breakdown,
+explainability output, and benchmark evidence.
+
 ## Collaborators
 1. Team Lead - Olatunji Tobiloba
 2. Frontend Dev - Fisayo Obadina
