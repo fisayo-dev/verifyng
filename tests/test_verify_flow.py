@@ -101,6 +101,17 @@ class VerifyFlowTests(unittest.TestCase):
             }
         })
 
+    def test_result_returns_404_for_invalid_uuid(self):
+        response = client.get("/api/result/fake-id-123")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {
+            "detail": {
+                "error": "NOT_FOUND",
+                "message": "Verification ID not found",
+            }
+        })
+
     def test_report_returns_url_only_after_completion(self):
         job_id = str(uuid.uuid4())
         supabase = _FakeSupabase(select_data={
