@@ -80,13 +80,23 @@ def trigger_pipeline_demo(job_id: str, background_tasks: BackgroundTasks):
 
 
 def format_verification_result(verification: dict) -> dict:
+    status = verification.get("status")
+
+    if status in {"PENDING_PAYMENT", "PAID", "PROCESSING"}:
+        return {"status": status}
+
+    if status == "FAILED":
+        return {
+            "status": "FAILED",
+            "flags": verification.get("flags", []),
+        }
+
     return {
         "id": verification.get("id"),
-        "file_hash": verification.get("file_hash"),
+        "status": status,
         "trust_score": verification.get("trust_score"),
         "verdict": verification.get("verdict"),
         "flags": verification.get("flags", []),
-        "layers_run": verification.get("layers_run", []),
         "confidence": verification.get("confidence"),
-        "status": verification.get("status"),
+        "layers_run": verification.get("layers_run", []),
     }

@@ -60,16 +60,70 @@ class VerifyFlowTests(unittest.TestCase):
 
         expected_result = {
             "id": job_id,
-            "file_hash": "abc123",
+            "status": "COMPLETE",
             "trust_score": 82,
             "verdict": "LIKELY AUTHENTIC",
             "flags": [],
-            "layers_run": ["visual_forensics", "content_validation"],
             "confidence": "HIGH",
-            "status": "COMPLETE",
+            "layers_run": ["visual_forensics", "content_validation"],
         }
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), expected_result)
+        self.assertEqual(set(response.json()), set(expected_result))
+
+    def test_result_returns_pending_payment_contract(self):
+        job_id = str(uuid.uuid4())
+
+        with patch("backend.app.main.get_verification_result", return_value={
+            "id": job_id,
+            "status": "PENDING_PAYMENT",
+            "trust_score": None,
+            "verdict": None,
+            "flags": [],
+            "confidence": None,
+            "layers_run": [],
+        }):
+            response = client.get(f"/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "PENDING_PAYMENT"})
+
+    def test_result_returns_processing_contract(self):
+        job_id = str(uuid.uuid4())
+
+        with patch("backend.app.main.get_verification_result", return_value={
+            "id": job_id,
+            "status": "PROCESSING",
+            "trust_score": None,
+            "verdict": None,
+            "flags": [],
+            "confidence": None,
+            "layers_run": [],
+        }):
+            response = client.get(f"/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "PROCESSING"})
+
+    def test_result_returns_failed_contract(self):
+        job_id = str(uuid.uuid4())
+
+        with patch("backend.app.main.get_verification_result", return_value={
+            "id": job_id,
+            "status": "FAILED",
+            "trust_score": None,
+            "verdict": "FAILED",
+            "flags": ["Could not download certificate file"],
+            "confidence": "LOW",
+            "layers_run": [],
+        }):
+            response = client.get(f"/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "status": "FAILED",
+            "flags": ["Could not download certificate file"],
+        })
 
     def test_result_returns_404_when_job_is_missing(self):
         job_id = str(uuid.uuid4())
