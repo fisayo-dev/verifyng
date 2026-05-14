@@ -47,7 +47,7 @@ def get_supabase() -> Client:
     return create_client(url, key)
 
 
-def create_verification_job(file_hash: str, file_name: str) -> dict:
+def create_verification_job(file_hash: str, file_name: str, temp_file_path: str) -> dict:
     """Create a new verification job in pending state."""
     if not has_supabase_config():
         for existing in _LOCAL_VERIFICATIONS.values():
@@ -63,6 +63,7 @@ def create_verification_job(file_hash: str, file_name: str) -> dict:
             "id": job_id,
             "file_hash": file_hash,
             "file_name": file_name,
+            "temp_file_path": temp_file_path,
             "status": "pending",
         }
         _LOCAL_VERIFICATIONS[job_id] = job
@@ -89,6 +90,7 @@ def create_verification_job(file_hash: str, file_name: str) -> dict:
     result = supabase.table("verifications").insert({
         "file_hash": file_hash,
         "file_name": file_name,
+        "temp_file_path": temp_file_path,
         "status": "pending",
     }).execute()
 
@@ -203,27 +205,23 @@ def create_payment_record(squad_ref: str, verification_id: str) -> dict:
     return result.data[0] if result.data else {}
 
 
-def confirm_payment(squad_ref: str) -> dict:
-    """Mark payment as confirmed."""
+def get_payment_by_squad_ref(squad_ref: str) -> dict:
+    """Fetch payment record by squad_ref."""
     if not has_supabase_config():
         payment = _LOCAL_PAYMENTS.get(squad_ref)
         if not payment:
-            return {}
-
-        payment.update({
-            "status": "confirmed",
-            "updated_at": "now()",
-        })
+            return None
         return payment
 
     supabase = get_supabase()
 
-    result = supabase.table("payments").update({
-        "status": "confirmed",
-        "updated_at": "now()",
-    }).eq("squad_ref", squad_ref).execute()
+    result = supabase.table("payments")\
+        .select("*")\
+        .eq("squad_ref", squad_ref)\
+        .single()\
+        .execute()
 
-    return result.data[0] if result.data else {}
+    return result.data if result.data else None
 
 
 def get_institution_formats() -> list:
