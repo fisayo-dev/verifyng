@@ -1,11 +1,12 @@
- "use client";
+"use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bars3Icon,
   ShieldCheckIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import gsap from "gsap";
 import Button from "../general/button";
 import Link from "next/link";
 
@@ -18,21 +19,83 @@ const navLinks = [
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const navRef = useRef<HTMLDivElement | null>(null);
+  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    if (reduceMotion.matches) {
+      return;
+    }
+
+    const ctx = gsap.context(() => {
+      gsap.from(wrapperRef.current, {
+        y: -18,
+        opacity: 0,
+        duration: 0.6,
+        ease: "power3.out",
+      });
+
+      gsap.from(navRef.current?.children ?? [], {
+        y: -10,
+        opacity: 0,
+        duration: 0.4,
+        ease: "power2.out",
+        stagger: 0.08,
+        delay: 0.15,
+      });
+    }, wrapperRef);
+
+    return () => {
+      ctx.revert();
+    };
+  }, []);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    if (reduceMotion.matches) {
+      return;
+    }
+
+    if (!mobileMenuRef.current) {
+      return;
+    }
+
+    if (isMenuOpen) {
+      gsap.fromTo(
+        mobileMenuRef.current,
+        { y: -12, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.28, ease: "power2.out" }
+      );
+      return;
+    }
+
+    gsap.set(mobileMenuRef.current, { clearProps: "all" });
+  }, [isMenuOpen]);
 
   return (
-    <div className="fixed z-30 w-full py-4 backdrop-blur-sm bg-transparent">
+    <div className="fixed z-30 w-full bg-transparent py-4 backdrop-blur-sm">
       <div className="app-container relative">
-        <div className="flex items-center justify-between rounded-full border border-foreground/8 bg-white/90 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(23,23,23,0.2)]">
+        <div
+          ref={wrapperRef}
+          className="flex items-center justify-between rounded-full border border-foreground/8 bg-white/90 px-4 py-3 shadow-[0_18px_40px_-28px_rgba(23,23,23,0.2)]"
+        >
           <Link
             href="/"
-            className="text-2xl font-bold flex items-center gap-2"
+            className="flex items-center gap-2 text-2xl font-bold"
             onClick={() => setIsMenuOpen(false)}
           >
-          <ShieldCheckIcon className="w-6 h-6 text-primary" />
-          <span>VerifyNG</span>
+            <ShieldCheckIcon className="h-6 w-6 text-primary" />
+            <span>VerifyNG</span>
           </Link>
 
-          <div className="hidden md:flex items-center justify-center gap-2">
+          <div
+            ref={navRef}
+            className="hidden items-center justify-center gap-2 md:flex"
+          >
             {navLinks.map((link) => (
               <Link
                 key={link.href}
@@ -64,7 +127,10 @@ const Header = () => {
         </div>
 
         {isMenuOpen ? (
-          <div className="mt-3 grid gap-2 rounded-3xl border border-foreground/8 bg-white/95 p-3 shadow-[0_20px_50px_-32px_rgba(23,23,23,0.24)] md:hidden">
+          <div
+            ref={mobileMenuRef}
+            className="mt-3 grid gap-2 rounded-3xl border border-foreground/8 bg-white/95 p-3 shadow-[0_20px_50px_-32px_rgba(23,23,23,0.24)] md:hidden"
+          >
             {navLinks.map((link) => (
               <Link
                 key={link.href}
