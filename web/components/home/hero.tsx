@@ -101,7 +101,7 @@ const Hero = () => {
                   <span className="h-3 w-3 rounded-full bg-warning" />
                   <span className="h-3 w-3 rounded-full bg-success" />
                   <div className="ml-3 flex-1 rounded-full bg-white px-3 py-1 text-center text-xs text-gray">
-                    verify.verifyng.ai
+                    verifyng-three.vercel.app
                   </div>
                 </div>
 
