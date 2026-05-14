@@ -10,8 +10,9 @@ const Header = () => {
           <ShieldCheckIcon className="w-6 h-6 text-primary" />
           <span>VerifyNG</span>
         </Link>
-        <div className="hidden md:flex items-center justify-center">
-          <Link href="/#features" className="text-center">Features</Link>
+        <div className="hidden md:flex items-center justify-center space-x-4">
+          <Link href="/#features" className="text-center px-3 py-1 rounded-full hover:bg-primary/5">Features</Link>
+          <Link href="/results/demo" className="text-center px-3 py-1 rounded-full hover:bg-primary/5">Demo Verfication</Link>
         </div>
 
         <Button>Signup</Button>
