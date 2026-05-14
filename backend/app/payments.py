@@ -5,7 +5,7 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException
 
-from .database import confirm_payment, get_payment_by_squad_ref, get_verification_result
+from .database import get_payment_by_squad_ref, get_verification_result, confirm_payment
 from .verifications import verify_payment
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,6 @@ async def initiate_payment(
         "email": email,
         "currency": "NGN",
         "initiate_type": "inline",
-        "key": SQUAD_API_KEY,
         # "transaction_ref": transaction_ref,
         # "callback_url": WEBHOOK_URL,
     }
@@ -112,12 +111,18 @@ async def squad_webhook(payload: dict):
         logger.error(f"Error in verify_payment: {e}")
         raise HTTPException(status_code=500, detail="Verification process failed")
 
+from pydantic import BaseModel
+
+class InitiatePaymentRequest(BaseModel):
+    amount: int
+    email: str
+    transaction_ref: str
+
 @router.post("/initiate-payment")
 async def initiate_payment_endpoint(
-    amount: int,
-    email: str,
-    transaction_ref: str,
+    request: InitiatePaymentRequest,
 ):
     """Endpoint to initiate payment."""
-    result = await initiate_payment(amount, email, transaction_ref)
+    result = await initiate_payment(request.amount, request.email, request.transaction_ref)
+
     return result

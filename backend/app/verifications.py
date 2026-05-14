@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from .database import (
-    confirm_payment,
+
     create_payment_record,
     create_verification_job,
     get_supabase,

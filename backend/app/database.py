@@ -205,6 +205,25 @@ def create_payment_record(squad_ref: str, verification_id: str) -> dict:
     return result.data[0] if result.data else {}
 
 
+def confirm_payment(squad_ref: str) -> dict:
+    """Mark payment as confirmed after successful Squad verification."""
+    if not has_supabase_config():
+        payment = _LOCAL_PAYMENTS.get(squad_ref)
+        if not payment:
+            return None
+
+        payment["status"] = "confirmed"
+        return payment
+
+    supabase = get_supabase()
+
+    updated = supabase.table("payments").update({
+        "status": "confirmed",
+    }).eq("squad_ref", squad_ref).execute()
+
+    return updated.data[0] if updated.data else None
+
+
 def get_payment_by_squad_ref(squad_ref: str) -> dict:
     """Fetch payment record by squad_ref."""
     if not has_supabase_config():
