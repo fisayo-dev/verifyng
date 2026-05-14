@@ -154,7 +154,7 @@ const Step = () => {
         data-features-heading
         className="text-center text-4xl font-extrabold md:text-4xl"
       >
-        Features
+        How <span className="text-primary">VerifyNG</span> Works
       </h2>
       <div className="relative overflow-hidden rounded-4xl border border-foreground/8 px-6 py-10 shadow-[0_36px_90px_-52px_rgba(23,23,23,0.65)] md:px-10 md:py-14">
         <div
