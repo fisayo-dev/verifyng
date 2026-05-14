@@ -51,10 +51,10 @@ const ResultDetailsPanel = ({
           <span>Back to verify</span>
         </Link>
         <div className="grid gap-3 text-center">
+          <h1 className="text-4xl font-extrabold">Verification result</h1>
           <p className="mx-auto w-fit rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
             Result details
           </p>
-          <h1 className="text-4xl font-extrabold">Verification result</h1>
         </div>
       </div>
 
@@ -62,10 +62,7 @@ const ResultDetailsPanel = ({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="grid gap-2">
             <p className="text-sm font-medium text-primary">Job reference</p>
-            <h2 className="break-all text-2xl font-bold">{jobId}</h2>
-            <p className="text-sm text-gray">
-              Route: <span className="font-medium text-foreground">/results/{jobId}</span>
-            </p>
+            <h2 className="break-all text-xl font-bold">{jobId}</h2>
           </div>
           <div
             className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
