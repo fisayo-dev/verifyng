@@ -68,7 +68,7 @@ const Header = () => {
       gsap.fromTo(
         mobileMenuRef.current,
         { y: -12, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.28, ease: "power2.out" }
+        { y: 0, opacity: 1, duration: 0.28, ease: "power2.out" },
       );
       return;
     }
@@ -107,16 +107,21 @@ const Header = () => {
             ))}
           </div>
 
-          <div className="hidden md:block">
-            <Button>Signup</Button>
-          </div>
+          <Link
+            href="/verify"
+            className="hidden md:inline-flex items-center justify-center rounded-full bg-primary px-6 py-3 text-white transition-all hover:scale-105 hover:bg-primary/85 text-sm"
+          >
+            Start Verification
+          </Link>
 
           <button
             type="button"
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-foreground/10 text-foreground transition-colors hover:bg-primary/5 md:hidden"
             onClick={() => setIsMenuOpen((open) => !open)}
             aria-expanded={isMenuOpen}
-            aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-label={
+              isMenuOpen ? "Close navigation menu" : "Open navigation menu"
+            }
           >
             {isMenuOpen ? (
               <XMarkIcon className="h-5 w-5" />
@@ -129,7 +134,7 @@ const Header = () => {
         {isMenuOpen ? (
           <div
             ref={mobileMenuRef}
-            className="mt-3 grid gap-2 rounded-3xl border border-foreground/8 bg-white/95 p-3 shadow-[0_20px_50px_-32px_rgba(23,23,23,0.24)] md:hidden"
+            className="overflow-hidden mt-3 grid gap-2 rounded-3xl border border-foreground/8 bg-white/95 p-3 shadow-[0_20px_50px_-32px_rgba(23,23,23,0.24)] md:hidden"
           >
             {navLinks.map((link) => (
               <Link
@@ -141,7 +146,9 @@ const Header = () => {
                 {link.label}
               </Link>
             ))}
-            <Button className="mt-1 w-full">Signup</Button>
+            <Button className="mt-1 w-full text-sm">
+              <Link href="/verify">Start Verification</Link>
+            </Button>
           </div>
         ) : null}
       </div>
