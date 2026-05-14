@@ -73,9 +73,9 @@ const Features = () => {
           data-features-heading
           className="text-center text-4xl font-extrabold md:text-4xl"
         >
-          Features
+          Verify your Certificate
         </h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 py-5">
           {features.map((feature) => (
             <div
               key={feature.title}
