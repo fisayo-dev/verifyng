@@ -1,3 +1,4 @@
+import { VERIFICATION_SESSION_PREFIX } from "@/constants/verification";
 import api from "@/lib/axios";
 import type {
   StoredVerificationSession,
@@ -9,8 +10,6 @@ import {
   isTerminalVerificationStatus,
   normalizeVerificationStatus,
 } from "@/types/verification";
-
-const VERIFICATION_SESSION_PREFIX = "verifyng:verification:";
 
 const resolvePollUrl = (pollUrl: string) => pollUrl.trim();
 
