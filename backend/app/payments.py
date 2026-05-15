@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 SQUAD_API_URL = os.getenv("SQUAD_API_URL", "https://sandbox-api-d.squadco.com")
 SQUAD_API_KEY = os.getenv("SQUAD_API_KEY")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://your-domain.com/webhook")  # Set this to your actual webhook URL
+CALLBACK_URL = os.getenv("CALLBACK_URL", "")  # Set this to your actual callback URL
 
 router = APIRouter()
 
@@ -28,6 +29,11 @@ async def initiate_payment(
     if not SQUAD_API_KEY:
         raise ValueError("SQUAD_API_KEY environment variable is required")
 
+    if CALLBACK_URL == "":
+        callback_url = f"https://verifyng-three.vercel.app/results/{verification_id}"  # Update this to your actual callback URL
+    else:
+        callback_url = CALLBACK_URL
+
     url = f"{SQUAD_API_URL}/transaction/initiate"
     headers = {
         "Authorization": f"Bearer {SQUAD_API_KEY}",
@@ -38,6 +44,7 @@ async def initiate_payment(
         "email": email,
         "currency": "NGN",
         "initiate_type": "inline",
+        "callback_url": callback_url,
         # "transaction_ref": transaction_ref,
         # "callback_url": WEBHOOK_URL,
     }
