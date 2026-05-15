@@ -222,7 +222,7 @@ const ResultDetailsPanel = ({
                   {analysis.map((flag) => (
                     <span
                       key={flag}
-                      className="rounded-full bg-white px-3 py-2 text-sm text-foreground shadow-sm"
+                      className="rounded-2xl bg-white px-3 py-2 text-sm text-foreground shadow-sm"
                     >
                       {flag}
                     </span>
