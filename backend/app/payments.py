@@ -53,14 +53,27 @@ async def initiate_payment(
                 or response_data.get("transaction_ref")
                 or response_data.get("reference")
             )
+            checkout_url = (
+                payload.get("checkout_url")
+                or response_data.get("checkout_url")
+                or response_data.get("authorization_url")
+                or response_data.get("payment_url")
+            )
 
-            if not squad_ref:
-                raise ValueError("Squad response did not include a transaction_ref")
+            if checkout_url and isinstance(response_data, dict):
+                response_data["checkout_url"] = checkout_url
+                payload["data"] = response_data
 
-            create_payment_record( 
-                squad_ref=squad_ref,
-                verification_id=verification_id,
-             )
+            if squad_ref:
+                create_payment_record(
+                    squad_ref=squad_ref,
+                    verification_id=verification_id,
+                )
+            else:
+                logger.warning(
+                    "Squad initiate response did not include transaction_ref: %s",
+                    payload,
+                )
 
 
             return payload
