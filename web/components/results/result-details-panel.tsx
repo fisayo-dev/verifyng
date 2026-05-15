@@ -13,6 +13,7 @@ import {
   isVerificationComplete,
   isVerificationFailed,
 } from "@/types/verification";
+import GsapTyping from "@/components/shared/gsap-typing";
 
 interface ResultDetailsPanelProps {
   jobId: string;
@@ -62,7 +63,10 @@ const ResultDetailsPanel = ({
   const isFailed = isVerificationFailed(result);
   const flags = result?.flags ?? [];
   const { flags: visibleFlags, analysis } = splitFlags(flags);
-  const currentStatus = result?.status ?? sessionStatus ?? (isPolling ? "PROCESSING" : "PENDING_PAYMENT");
+  const currentStatus =
+    result?.status ??
+    sessionStatus ??
+    (isPolling ? "PROCESSING" : "PENDING_PAYMENT");
   const isTerminalFailed = currentStatus === "FAILED" || isFailed;
   const isTerminalComplete = currentStatus === "COMPLETE" || isComplete;
   const completeResult = isComplete ? result : null;
@@ -95,27 +99,22 @@ const ResultDetailsPanel = ({
           </div>
           <div
             className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-              isTerminalComplete
-                ? "bg-success-soft text-success"
-                : isTerminalFailed
-                  ? "bg-danger-soft text-danger"
-                  : currentStatus === "PAID"
-                    ? "bg-trust-blue-soft text-trust-blue"
-                    : "bg-primary/10 text-primary"
+              isTerminalComplete ? "bg-success-soft text-success"
+              : isTerminalFailed ? "bg-danger-soft text-danger"
+              : currentStatus === "PAID" ? "bg-trust-blue-soft text-trust-blue"
+              : "bg-primary/10 text-primary"
             }`}
           >
-            {isTerminalComplete ? (
+            {isTerminalComplete ?
               <CheckBadgeIcon className="h-5 w-5" />
-            ) : isTerminalFailed ? (
+            : isTerminalFailed ?
               <ExclamationTriangleIcon className="h-5 w-5" />
-            ) : (
-              <ClockIcon className="h-5 w-5" />
-            )}
+            : <ClockIcon className="h-5 w-5" />}
             <span>{currentStatus}</span>
           </div>
         </div>
 
-        {pollError ? (
+        {pollError ?
           <div className="rounded-2xl border border-danger/20 bg-danger-soft p-4">
             <p className="font-semibold text-danger">Polling failed</p>
             <p className="mt-1 text-sm text-foreground/80">{pollError}</p>
@@ -127,9 +126,9 @@ const ResultDetailsPanel = ({
               Retry polling
             </button>
           </div>
-        ) : null}
+        : null}
 
-        {isTerminalComplete ? (
+        {isTerminalComplete ?
           <div className="grid gap-5">
             <div className="grid gap-4 rounded-[1.75rem] bg-[linear-gradient(135deg,var(--trust-blue-soft),rgba(255,255,255,0.98))] p-5 md:grid-cols-[1.1fr_0.9fr]">
               <div className="grid gap-4">
@@ -151,7 +150,9 @@ const ResultDetailsPanel = ({
                 </p>
               </div>
               <div className="grid gap-3 rounded-3xl bg-white/85 p-5">
-                <p className="text-sm font-medium text-gray">Analysis details</p>
+                <p className="text-sm font-medium text-gray">
+                  Analysis details
+                </p>
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-gray">
                     Verdict
@@ -175,7 +176,7 @@ const ResultDetailsPanel = ({
               <div className="rounded-3xl border border-foreground/8 bg-background p-5">
                 <p className="text-sm font-semibold text-foreground">Flags</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {visibleFlags.length > 0 ? (
+                  {visibleFlags.length > 0 ?
                     visibleFlags.map((flag) => (
                       <span
                         key={flag}
@@ -184,14 +185,17 @@ const ResultDetailsPanel = ({
                         {flag}
                       </span>
                     ))
-                  ) : (
-                    <p className="text-sm text-gray">No risk flags were returned.</p>
-                  )}
+                  : <p className="text-sm text-gray">
+                      No risk flags were returned.
+                    </p>
+                  }
                 </div>
               </div>
               <div className="rounded-3xl border border-foreground/8 bg-background p-5">
-                <p className="text-sm font-semibold text-foreground">Layers run</p>
-                {hasLayers ? (
+                <p className="text-sm font-semibold text-foreground">
+                  Layers run
+                </p>
+                {hasLayers ?
                   <div className="mt-4 flex flex-wrap gap-2">
                     {layersRun.map((layer) => (
                       <span
@@ -202,13 +206,14 @@ const ResultDetailsPanel = ({
                       </span>
                     ))}
                   </div>
-                ) : (
-                  <p className="mt-3 text-sm text-gray">No analysis layers were returned.</p>
-                )}
+                : <p className="mt-3 text-sm text-gray">
+                    No analysis layers were returned.
+                  </p>
+                }
               </div>
             </div>
 
-            {analysis.length > 0 ? (
+            {analysis.length > 0 ?
               <div className="rounded-3xl border border-trust-blue/10 bg-trust-blue-soft/60 p-5">
                 <p className="text-sm font-semibold text-trust-blue">
                   Analysis Details
@@ -224,15 +229,17 @@ const ResultDetailsPanel = ({
                   ))}
                 </div>
               </div>
-            ) : null}
+            : null}
           </div>
-        ) : null}
+        : null}
 
-        {isTerminalFailed ? (
+        {isTerminalFailed ?
           <div className="grid gap-4 rounded-[1.75rem] border border-danger/20 bg-danger-soft p-5">
-            <p className="text-lg font-semibold text-danger">Verification failed</p>
+            <p className="text-lg font-semibold text-danger">
+              Verification failed
+            </p>
             <div className="flex flex-wrap gap-2">
-              {visibleFlags.length > 0 ? (
+              {visibleFlags.length > 0 ?
                 visibleFlags.map((flag) => (
                   <span
                     key={flag}
@@ -241,13 +248,12 @@ const ResultDetailsPanel = ({
                     {flag}
                   </span>
                 ))
-              ) : (
-                <p className="text-sm text-foreground/75">
+              : <p className="text-sm text-foreground/75">
                   The API returned `FAILED` without additional failure flags.
                 </p>
-              )}
+              }
             </div>
-            {analysis.length > 0 ? (
+            {analysis.length > 0 ?
               <div className="rounded-3xl bg-white/70 p-4">
                 <p className="text-sm font-semibold text-foreground">
                   Analysis Details
@@ -263,21 +269,24 @@ const ResultDetailsPanel = ({
                   ))}
                 </div>
               </div>
-            ) : null}
+            : null}
           </div>
-        ) : null}
+        : null}
 
-        {!isComplete && !isFailed && !pollError ? (
+        {!isComplete && !isFailed && !pollError ?
           <div className="grid gap-3 rounded-[1.75rem] border border-primary/15 bg-primary/5 p-5">
             <p className="text-lg font-semibold text-foreground">
               {isPolling ? "Polling in progress" : "Ready to poll"}
             </p>
+            {isPolling ?
+              <GsapTyping />
+            : null}
             <p className="text-sm text-foreground/75">
               The page checks the result endpoint every 3 seconds and stops only
               when the API returns `COMPLETE` or `FAILED`.
             </p>
           </div>
-        ) : null}
+        : null}
       </section>
     </div>
   );
