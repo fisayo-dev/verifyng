@@ -58,7 +58,9 @@ export const isVerificationFailed = (
   result: VerificationResult | null,
 ): result is VerificationFailedResult => result?.status === "FAILED";
 
-export const normalizeVerificationStatus = (value: string): VerificationStatus => {
+export const normalizeVerificationStatus = (
+  value: string,
+): VerificationStatus => {
   const normalized = value.trim().toUpperCase();
 
   if (
@@ -83,4 +85,4 @@ export const normalizeVerificationStatus = (value: string): VerificationStatus =
 };
 
 export const isTerminalVerificationStatus = (status: VerificationStatus) =>
-  status === "COMPLETE" || status === "FAILED";
+  status === "COMPLETE" || status === "PENDING_PAYMENT" || status === "FAILED";

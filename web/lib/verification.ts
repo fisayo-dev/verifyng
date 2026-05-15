@@ -85,9 +85,7 @@ export const updateVerificationSession = (
   return nextSession;
 };
 
-export const getLatestStoredVerificationSession = (
-  onlyTerminal = false,
-) => {
+export const getLatestStoredVerificationSession = (onlyTerminal = false) => {
   if (typeof window === "undefined") {
     return null;
   }
@@ -101,7 +99,9 @@ export const getLatestStoredVerificationSession = (
       continue;
     }
 
-    const session = readStoredVerificationSession(window.localStorage.getItem(key));
+    const session = readStoredVerificationSession(
+      window.localStorage.getItem(key),
+    );
 
     if (!session) {
       continue;
@@ -113,7 +113,8 @@ export const getLatestStoredVerificationSession = (
 
     if (
       !latestSession ||
-      new Date(session.saved_at).getTime() > new Date(latestSession.saved_at).getTime()
+      new Date(session.saved_at).getTime() >
+        new Date(latestSession.saved_at).getTime()
     ) {
       latestSession = session;
     }
@@ -136,11 +137,15 @@ export const submitVerificationDocument = async (
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await api.post<VerificationCheckoutResponse>("/verify", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
+  const response = await api.post<VerificationCheckoutResponse>(
+    "/verify",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
     },
-  });
+  );
 
   return {
     ...response.data,
