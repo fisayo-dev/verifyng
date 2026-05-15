@@ -77,6 +77,41 @@ class LocalDatabaseFallbackTests(unittest.TestCase):
         self.assertNotIn("updated_at", payload)
         update_query.eq.assert_called_once_with("id", "job-id")
 
+    def test_create_verification_job_does_not_reuse_supabase_row_by_filename(self):
+        existing = {
+            "id": "old-job",
+            "file_name": "same-name.jpg",
+            "status": "pending",
+        }
+        inserted = {
+            "id": "new-job",
+            "file_name": "same-name.jpg",
+            "temp_file_path": "C:\\tmp\\new.jpg",
+            "status": "pending",
+        }
+        table = Mock()
+        table.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(
+            data=[existing]
+        )
+        table.insert.return_value.execute.return_value = SimpleNamespace(
+            data=[inserted]
+        )
+
+        with patch.dict("os.environ", {
+            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+        }, clear=True), patch("backend.app.database.get_supabase") as get_supabase:
+            get_supabase.return_value.table.return_value = table
+
+            result = database.create_verification_job(
+                "same-name.jpg",
+                "C:\\tmp\\new.jpg",
+            )
+
+        self.assertEqual(result["job_id"], "new-job")
+        self.assertFalse(result["cached"])
+        table.insert.assert_called_once()
+
     def test_failed_verdict_maps_to_prd_failed_status(self):
         with patch.dict("os.environ", {}, clear=True):
             job = database.create_verification_job("abc123", "test_cert.jpg")

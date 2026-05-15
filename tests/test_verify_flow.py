@@ -17,7 +17,7 @@ class VerifyFlowTests(unittest.TestCase):
         self.assertEqual(client.get("/health").status_code, 200)
         self.assertEqual(client.post("/verify").status_code, 404)
         self.assertEqual(client.post("/api/verify").status_code, 422)
-        self.assertEqual(client.post("/api/webhook/squad").status_code, 404)
+        self.assertEqual(client.post("/api/webhook/squad").status_code, 422)
         self.assertEqual(client.post(f"/trigger/{uuid.uuid4()}").status_code, 404)
 
     def test_verify_upload_returns_job_and_api_poll_url_without_squad_key(self):
@@ -41,6 +41,36 @@ class VerifyFlowTests(unittest.TestCase):
             payload["poll_url"],
             f"https://olatunjitobi-verifyng-api.hf.space/api/result/{payload['job_id']}",
         )
+
+    def test_verify_upload_initiates_squad_payment_in_kobo(self):
+        from backend.app.database import reset_local_store
+
+        reset_local_store()
+        captured = {}
+
+        async def fake_initiate_payment(amount, email, verification_id):
+            captured.update({
+                "amount": amount,
+                "email": email,
+                "verification_id": verification_id,
+            })
+            return {
+                "data": {
+                    "checkout_url": "https://checkout.squadco.com/test",
+                }
+            }
+
+        with patch.dict("os.environ", {"SQUAD_API_KEY": "sandbox-key"}, clear=True), \
+                patch("backend.app.payments.initiate_payment", side_effect=fake_initiate_payment):
+            response = client.post(
+                "/api/verify",
+                files={"file": ("sample.jpg", b"sample bytes", "image/jpeg")},
+            )
+
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["amount"], 50000)
+        self.assertEqual(payload["checkout_url"], "https://checkout.squadco.com/test")
 
     def test_result_returns_processing_without_private_scores(self):
         job_id = str(uuid.uuid4())
@@ -107,6 +137,34 @@ class VerifyFlowTests(unittest.TestCase):
             "confidence": "HIGH",
             "layers_run": ["visual_forensics", "content_validation"],
             "report_url": "https://example.com/report.pdf",
+        })
+
+    def test_result_normalizes_lowercase_completed_status(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "completed",
+            "trust_score": 47,
+            "verdict": "SUSPICIOUS",
+            "flags": ["AI evidence: visual=45"],
+            "confidence": "MEDIUM",
+            "layers_run": ["visual_forensics"],
+            "report_url": None,
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "verification_id": job_id,
+            "status": "COMPLETE",
+            "trust_score": 47,
+            "verdict": "SUSPICIOUS",
+            "flags": ["AI evidence: visual=45"],
+            "confidence": "MEDIUM",
+            "layers_run": ["visual_forensics"],
+            "report_url": None,
         })
 
     def test_result_returns_404_when_job_is_missing(self):
