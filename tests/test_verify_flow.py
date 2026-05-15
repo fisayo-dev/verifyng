@@ -349,6 +349,31 @@ class VerifyFlowTests(unittest.TestCase):
 
         self.assertEqual(file_url, "https://public.example/file.jpg")
 
+    def test_storage_upload_expands_relative_signed_url(self):
+        from backend.app.verifications import _upload_file_to_storage
+
+        bucket = _FakeStorageBucket(
+            signed_response={
+                "signedURL": "/storage/v1/object/sign/certificates/job-id/sample.jpg?token=abc"
+            },
+            public_url="https://public.example/file.jpg",
+        )
+        supabase = _FakeStorageSupabase(bucket)
+
+        with patch.dict("os.environ", {"SUPABASE_URL": "https://project.supabase.co"}, clear=True), \
+                patch("backend.app.verifications.has_supabase_config", return_value=True), \
+                patch("backend.app.verifications.get_supabase", return_value=supabase):
+            file_url = _upload_file_to_storage(
+                Path("sample.jpg"),
+                "job-id",
+                "certificates",
+            )
+
+        self.assertEqual(
+            file_url,
+            "https://project.supabase.co/storage/v1/object/sign/certificates/job-id/sample.jpg?token=abc",
+        )
+
 
 class _FakeSupabase:
     def __init__(self, select_data):

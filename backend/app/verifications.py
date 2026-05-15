@@ -189,17 +189,31 @@ def _create_signed_storage_url(bucket, storage_path: str) -> Optional[str]:
         return None
 
     if isinstance(response, dict):
-        return (
+        signed_url = (
             response.get("signedURL")
             or response.get("signedUrl")
             or response.get("signed_url")
         )
+        return _absolute_storage_url(signed_url)
 
-    return (
+    signed_url = (
         getattr(response, "signedURL", None)
         or getattr(response, "signedUrl", None)
         or getattr(response, "signed_url", None)
     )
+    return _absolute_storage_url(signed_url)
+
+
+def _absolute_storage_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+        if supabase_url:
+            return f"{supabase_url}{url}"
+    return url
 
 
 def _update_verification_record(verification_id: str, file_url: str) -> dict:
