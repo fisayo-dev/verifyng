@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const fallbackBaseURL = "https://olatunjitobi-verifyng-api.hf.space";
+const fallbackBaseURL = "https://olatunjitobi-verifyng-api.hf.space/api";
 const baseURL =
   process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "") || fallbackBaseURL;
 
