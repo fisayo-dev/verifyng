@@ -6,6 +6,7 @@ import type {
   VerificationStatus,
 } from "@/types/verification";
 import { normalizeVerificationStatus } from "@/types/verification";
+import axios from "axios";
 
 const VERIFICATION_SESSION_PREFIX = "verifyng:verification:";
 
@@ -78,7 +79,9 @@ export const submitVerificationDocument = async (
 
 export const getVerificationResult = async (
   pollUrl: string,
+  jobId: string,
 ): Promise<VerificationResult> => {
+  console.log("POLL URL", pollUrl)
   const response = await api.get<VerificationResult>(resolvePollUrl(pollUrl));
   const result = response.data;
 
