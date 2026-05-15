@@ -68,14 +68,6 @@ const VerifyWorkspace = () => {
             )}
           </div>
 
-          {demoJobId ? (
-            <Link
-              href={`/results/${encodeURIComponent(demoJobId)}`}
-              className="inline-flex mx-auto w-fit items-center justify-center rounded-full border border-primary/20 px-5 py-3 font-medium text-primary transition-colors hover:bg-primary/10"
-            >
-              Open demo result
-            </Link>
-          ) : null}
         </section>
       </div>
     </div>
