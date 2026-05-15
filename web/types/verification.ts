@@ -1,10 +1,12 @@
 export type VerificationTerminalStatus = "COMPLETE" | "FAILED";
+export type VerificationInProgressStatus =
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "PROCESSING";
 
 export type VerificationStatus =
   | VerificationTerminalStatus
-  | "PENDING"
-  | "PROCESSING"
-  | "QUEUED"
+  | VerificationInProgressStatus
   | string;
 
 export interface VerificationCompleteResult {
@@ -32,6 +34,17 @@ export interface VerificationPendingResult {
   layers_run?: string[];
 }
 
+export interface VerificationCheckoutResponse {
+  job_id: string;
+  checkout_url: string;
+  poll_url: string;
+  status: VerificationStatus;
+}
+
+export interface StoredVerificationSession extends VerificationCheckoutResponse {
+  saved_at: string;
+}
+
 export type VerificationResult =
   | VerificationCompleteResult
   | VerificationFailedResult
@@ -44,3 +57,30 @@ export const isVerificationComplete = (
 export const isVerificationFailed = (
   result: VerificationResult | null,
 ): result is VerificationFailedResult => result?.status === "FAILED";
+
+export const normalizeVerificationStatus = (value: string): VerificationStatus => {
+  const normalized = value.trim().toUpperCase();
+
+  if (
+    normalized === "COMPLETE" ||
+    normalized === "FAILED" ||
+    normalized === "PAID" ||
+    normalized === "PROCESSING" ||
+    normalized === "PENDING_PAYMENT"
+  ) {
+    return normalized;
+  }
+
+  if (normalized === "PENDING" || normalized === "QUEUED") {
+    return "PENDING_PAYMENT";
+  }
+
+  if (normalized === "IN_PROGRESS" || normalized === "RUNNING") {
+    return "PROCESSING";
+  }
+
+  return normalized;
+};
+
+export const isTerminalVerificationStatus = (status: VerificationStatus) =>
+  status === "COMPLETE" || status === "FAILED";

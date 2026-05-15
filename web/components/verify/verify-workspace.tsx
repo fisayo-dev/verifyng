@@ -1,12 +1,43 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { DocumentIcon } from "@heroicons/react/24/outline";
+import { ArrowRightIcon, DocumentIcon } from "@heroicons/react/24/outline";
+import {
+  storeVerificationSession,
+  submitVerificationDocument,
+} from "@/lib/verification";
 import VerifyUploadDropzone from "@/components/verify/verify-upload-dropzone";
 
 const demoJobId = process.env.NEXT_PUBLIC_TEST_JOB_ID?.trim() ?? "";
 
 const VerifyWorkspace = () => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleUpload = async () => {
+    if (!selectedFile || isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const response = await submitVerificationDocument(selectedFile);
+      storeVerificationSession(response);
+      window.location.assign(response.checkout_url);
+    } catch (error) {
+      console.error(error);
+      setSubmitError(
+        "Unable to start verification. Please try again with the same file.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="app-container grid gap-8 pb-20">
       <div className="grid gap-3 text-center">
@@ -19,7 +50,23 @@ const VerifyWorkspace = () => {
 
       <div className="grid gap-6 ">
         <section className="grid gap-5 rounded-4xl border border-foreground/8 bg-white p-6 shadow-[0_20px_60px_-48px_rgba(23,23,23,0.35)]">
-          <VerifyUploadDropzone />
+          <VerifyUploadDropzone onFileSelect={setSelectedFile} />
+
+          <div className="grid gap-3">
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={!selectedFile || isSubmitting}
+              className="mx-auto inline-flex w-fit items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-primary/40"
+            >
+              <span>{isSubmitting ? "Starting checkout..." : "Continue to checkout"}</span>
+              <ArrowRightIcon className="h-4 w-4" />
+            </button>
+
+            {submitError && (
+              <p className="text-center text-sm text-danger">{submitError}</p>
+            )}
+          </div>
 
           {demoJobId ? (
             <Link

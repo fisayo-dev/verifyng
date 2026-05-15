@@ -1,32 +1,95 @@
 import api from "@/lib/axios";
-import type { VerificationResult } from "@/types/verification";
-import { redirect } from "next/navigation";
+import type {
+  StoredVerificationSession,
+  VerificationCheckoutResponse,
+  VerificationResult,
+  VerificationStatus,
+} from "@/types/verification";
+import { normalizeVerificationStatus } from "@/types/verification";
+import axios from "axios";
 
-export const getVerificationResult = async (
-  jobId: string,
-): Promise<VerificationResult> => {
-  const response = await api.get<VerificationResult>(
-    `/result/${encodeURIComponent(jobId)}`,
+const VERIFICATION_SESSION_PREFIX = "verifyng:verification:";
+
+const resolvePollUrl = (pollUrl: string) => pollUrl.trim();
+
+export const getStoredVerificationSession = (jobId: string) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawValue = window.localStorage.getItem(
+    `${VERIFICATION_SESSION_PREFIX}${jobId}`,
   );
 
-  return response.data;
-};
+  if (!rawValue) {
+    return null;
+  }
 
-export const verifyDocument = async (file_data: File) => {
   try {
-    const formData = new FormData();
-    formData.append("file", file_data);
-
-    const response = await api.post("/verify", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
-
-    const { checkout_url } = response.data;
-
-    redirect(checkout_url);
+    return JSON.parse(rawValue) as StoredVerificationSession;
   } catch {
-    console.error("Verfification failed");
+    return null;
   }
 };
+
+export const storeVerificationSession = (
+  session: VerificationCheckoutResponse,
+) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const payload: StoredVerificationSession = {
+    ...session,
+    status: normalizeVerificationStatus(session.status),
+    saved_at: new Date().toISOString(),
+  };
+
+  window.localStorage.setItem(
+    `${VERIFICATION_SESSION_PREFIX}${session.job_id}`,
+    JSON.stringify(payload),
+  );
+};
+
+export const clearVerificationSession = (jobId: string) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(`${VERIFICATION_SESSION_PREFIX}${jobId}`);
+};
+
+export const submitVerificationDocument = async (
+  file: File,
+): Promise<VerificationCheckoutResponse> => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await api.post<VerificationCheckoutResponse>("/verify", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
+  return {
+    ...response.data,
+    status: normalizeVerificationStatus(response.data.status),
+  };
+};
+
+export const getVerificationResult = async (
+  pollUrl: string,
+): Promise<VerificationResult> => {
+  console.log("POLL URL", pollUrl)
+  const response = await api.get<VerificationResult>(resolvePollUrl(pollUrl));
+  const result = response.data;
+
+  return {
+    ...result,
+    status: normalizeVerificationStatus(result.status),
+  };
+};
+
+export const getVerificationSessionStatus = (
+  session: StoredVerificationSession | null,
+): VerificationStatus | null => session?.status ?? null;
