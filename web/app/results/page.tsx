@@ -14,7 +14,7 @@ const ResultsIndexPage = () => {
     if (session) {
       router.replace(`/results/${encodeURIComponent(session.job_id)}`);
     }
-  }, []);
+  }, [router]);
 
   return (
     <div className="app-container grid min-h-[50vh] place-items-center pb-20 text-center">
