@@ -7,4 +7,5 @@ venv/
 simulate_divine.py
 harden_pipeline_inputs.py
 pipeline_hardening_samples/
+verifyng/
 tomorrow_task.txt

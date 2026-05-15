@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from postgrest.exceptions import APIError
 
 from backend.app.main import app
 
@@ -15,9 +16,31 @@ class VerifyFlowTests(unittest.TestCase):
     def test_main_only_exposes_owned_routes(self):
         self.assertEqual(client.get("/health").status_code, 200)
         self.assertEqual(client.post("/verify").status_code, 404)
-        self.assertEqual(client.post("/api/verify").status_code, 404)
+        self.assertEqual(client.post("/api/verify").status_code, 422)
         self.assertEqual(client.post("/api/webhook/squad").status_code, 404)
         self.assertEqual(client.post(f"/trigger/{uuid.uuid4()}").status_code, 404)
+
+    def test_verify_upload_returns_job_and_api_poll_url_without_squad_key(self):
+        from backend.app.database import reset_local_store
+
+        reset_local_store()
+        nonraising_client = TestClient(app, raise_server_exceptions=False)
+
+        with patch.dict("os.environ", {}, clear=True):
+            response = nonraising_client.post(
+                "/api/verify",
+                files={"file": ("sample.jpg", b"sample bytes", "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["job_id"])
+        self.assertEqual(payload["checkout_url"], "")
+        self.assertEqual(payload["status"], "PENDING_PAYMENT")
+        self.assertEqual(
+            payload["poll_url"],
+            f"https://olatunjitobi-verifyng-api.hf.space/api/result/{payload['job_id']}",
+        )
 
     def test_result_returns_processing_without_private_scores(self):
         job_id = str(uuid.uuid4())
@@ -89,6 +112,26 @@ class VerifyFlowTests(unittest.TestCase):
     def test_result_returns_404_when_job_is_missing(self):
         job_id = str(uuid.uuid4())
         supabase = _FakeSupabase(select_data=None)
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {
+            "detail": {
+                "error": "NOT_FOUND",
+                "message": "Verification ID not found",
+            }
+        })
+
+    def test_result_returns_404_when_supabase_single_row_is_missing(self):
+        job_id = str(uuid.uuid4())
+        supabase = _ErroringSupabase(APIError({
+            "code": "PGRST116",
+            "details": "The result contains 0 rows",
+            "hint": None,
+            "message": "Cannot coerce the result to a single JSON object",
+        }))
 
         with patch("backend.app.result.get_supabase", return_value=supabase):
             response = client.get(f"/api/result/{job_id}")
@@ -231,6 +274,26 @@ class _FakeSupabase:
 
     def execute(self):
         return SimpleNamespace(data=self.select_data)
+
+
+class _ErroringSupabase:
+    def __init__(self, error):
+        self.error = error
+
+    def table(self, name):
+        return self
+
+    def select(self, columns):
+        return self
+
+    def eq(self, column, value):
+        return self
+
+    def single(self):
+        return self
+
+    def execute(self):
+        raise self.error
 
 
 if __name__ == "__main__":
