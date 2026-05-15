@@ -5,8 +5,9 @@ from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException
 
-from .database import get_payment_by_squad_ref, get_verification_result, confirm_payment
+from .database import get_payment_by_squad_ref, get_verification_result, confirm_payment, create_payment_record
 from .verifications import verify_payment
+from .pipeline import trigger_ai_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ router = APIRouter()
 async def initiate_payment(
     amount: int,
     email: str,
-    transaction_ref: str,
+    verification_id: str,
 ) -> dict:
     
     """Initiate payment with Squad API."""
@@ -45,6 +46,13 @@ async def initiate_payment(
         try:
             response = await client.post(url, headers=headers, json=data)
             response.raise_for_status()
+
+            create_payment_record( 
+                squad_ref=response.json().get("transaction_ref"),
+                verification_id=verification_id,
+             )
+
+
             return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"Squad API error: {e.response.status_code} - {e.response.text}")
@@ -110,6 +118,14 @@ async def squad_webhook(payload: dict):
     except Exception as e:
         logger.error(f"Error in verify_payment: {e}")
         raise HTTPException(status_code=500, detail="Verification process failed")
+    
+    try:
+        await trigger_ai_pipeline(verification_id)
+    except Exception as e:
+        logger.error(f"Error triggering AI pipeline: {e}")
+        raise HTTPException(status_code=500, detail="AI pipeline trigger failed")
+
+
 
 from pydantic import BaseModel
 

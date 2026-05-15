@@ -1,7 +1,11 @@
 import logging
 import os
+import tempfile
+import uuid
 from pathlib import Path
 from typing import Optional
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from .database import (
 
@@ -13,30 +17,75 @@ from .database import (
     _LOCAL_VERIFICATIONS,
 )
 from .pipeline import trigger_ai_pipeline
+from .payments import initiate_payment
 
 logger = logging.getLogger(__name__)
+router = APIRouter()
 
 DEFAULT_SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "certificates")
 
 
-def create_verification(file_hash: str, file_name: str, temp_file_path: str) -> dict:
-    """Create a verification job with temporary file path."""
-    return create_verification_job(file_hash, file_name, temp_file_path)
+@router.post("/verify")
+async def verify_certificate(file: UploadFile = File(...)):
+    """Upload certificate file, create verification and payment, then return checkout details."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File upload is required")
+
+    temp_dir = Path(tempfile.gettempdir()) / "verifyng"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = str(temp_dir / f"{uuid.uuid4()}_{Path(file.filename).name}")
+
+    try:
+        contents = await file.read()
+        with open(temp_file_path, "wb") as handle:
+            handle.write(contents)
+    except Exception as exc:
+        logger.error("Failed to save uploaded file: %s", exc)
+        raise HTTPException(status_code=500, detail="Unable to save uploaded file")
+
+    try:
+        verification = create_verification(temp_file_path, file.filename, temp_file_path)
+        job_id = verification["job_id"]
+    except Exception as exc:
+        logger.error("Failed to create verification job: %s", exc)
+        raise HTTPException(status_code=500, detail="Unable to create verification job")
+
+    
+    
+    
+    checkout_url = ""
+    if os.getenv("SQUAD_API_KEY"):
+        try:
+            from .payments import initiate_payment
+
+            payment_response = await initiate_payment(
+                amount=500,
+                email="customer@example.com",
+                verification_id=job_id,
+            )
+            checkout_url = (
+                payment_response.get("checkout_url")
+                or payment_response.get("data", {}).get("checkout_url", "")
+                or ""
+            )
+            squad_ref = payment_response.get("transaction_ref")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("Failed to initiate payment: %s", exc)
+            raise HTTPException(status_code=500, detail="Unable to initiate payment")
+
+    return {
+        "job_id": job_id,
+        "checkout_url": checkout_url,
+        "status": "PENDING_PAYMENT",
+        "poll_url": "",
+    }
 
 
-def initialize_payment(verification_id: str, squad_ref: str) -> dict:
-    """Reserve a payment for the verification job.
-
-    This is a placeholder for the payment initialization step.
-    The actual payment flow will be implemented later.
-    """
-    logger.info(
-        "Initializing payment for verification_id=%s squad_ref=%s",
-        verification_id,
-        squad_ref,
-    )
-
-    return create_payment_record(squad_ref=squad_ref, verification_id=verification_id)
+def create_verification(file_path: str, file_name: str, temp_file_path: str) -> dict:
+    """Create verification metadata for the uploaded file."""
+    return create_verification_job(file_name, temp_file_path)
 
 
 async def verify_payment(
@@ -107,7 +156,7 @@ def _upload_file_to_storage(
 
     supabase = get_supabase()
     bucket = supabase.storage.from_(bucket_name)
-    storage_path = verification_id
+    storage_path = f"{verification_id}/{file_path.name}"
 
     logger.info(
         "Uploading file %s to Supabase storage bucket=%s path=%s",

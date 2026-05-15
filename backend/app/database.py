@@ -47,11 +47,11 @@ def get_supabase() -> Client:
     return create_client(url, key)
 
 
-def create_verification_job(file_hash: str, file_name: str, temp_file_path: str) -> dict:
+def create_verification_job(file_name: str, temp_file_path: str) -> dict:
     """Create a new verification job in pending state."""
     if not has_supabase_config():
         for existing in _LOCAL_VERIFICATIONS.values():
-            if existing["file_hash"] == file_hash:
+            if existing["file_name"] == file_name:
                 return {
                     "job_id": existing["id"],
                     "cached": True,
@@ -61,7 +61,7 @@ def create_verification_job(file_hash: str, file_name: str, temp_file_path: str)
         job_id = str(uuid.uuid4())
         job = {
             "id": job_id,
-            "file_hash": file_hash,
+            "file_hash": file_name,
             "file_name": file_name,
             "temp_file_path": temp_file_path,
             "status": "pending",
@@ -77,7 +77,7 @@ def create_verification_job(file_hash: str, file_name: str, temp_file_path: str)
 
     existing = supabase.table("verifications")\
         .select("*")\
-        .eq("file_hash", file_hash)\
+        .eq("file_name", file_name)\
         .execute()
 
     if existing.data:
@@ -88,7 +88,7 @@ def create_verification_job(file_hash: str, file_name: str, temp_file_path: str)
         }
 
     result = supabase.table("verifications").insert({
-        "file_hash": file_hash,
+        "file_hash": file_name,
         "file_name": file_name,
         "temp_file_path": temp_file_path,
         "status": "pending",
