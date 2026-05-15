@@ -6,6 +6,7 @@ import ResultDetailsPanel from "@/components/results/result-details-panel";
 import {
   getStoredVerificationSession,
   getVerificationResult,
+  updateVerificationSession,
 } from "@/lib/verification";
 import { isTerminalVerificationStatus } from "@/types/verification";
 import type { VerificationResult } from "@/types/verification";
@@ -72,6 +73,12 @@ const ResultDetailsClient = ({ jobId }: ResultDetailsClientProps) => {
         setSessionStatus(nextResult.status);
 
         if (isTerminalVerificationStatus(nextResult.status)) {
+          updateVerificationSession(jobId, {
+            status: nextResult.status,
+          });
+        }
+
+        if (isTerminalVerificationStatus(nextResult.status)) {
           setIsPolling(false);
           return;
         }
@@ -100,7 +107,7 @@ const ResultDetailsClient = ({ jobId }: ResultDetailsClientProps) => {
         clearTimeout(timeoutId);
       }
     };
-  }, [pollUrl]);
+  }, [jobId, pollUrl]);
 
   const beginPolling = () => {
     setResult(null);
