@@ -1,5 +1,6 @@
 import unittest
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -308,6 +309,46 @@ class VerifyFlowTests(unittest.TestCase):
         self.assertEqual(supabase.updated, {"status": "PROCESSING"})
         self.assertEqual(queued, [job_id])
 
+    def test_storage_upload_prefers_signed_url_for_pipeline_downloads(self):
+        from backend.app.verifications import _upload_file_to_storage
+
+        bucket = _FakeStorageBucket(
+            signed_response={"signedURL": "https://signed.example/file.jpg"},
+            public_url="https://public.example/file.jpg",
+        )
+        supabase = _FakeStorageSupabase(bucket)
+
+        with patch("backend.app.verifications.has_supabase_config", return_value=True), \
+                patch("backend.app.verifications.get_supabase", return_value=supabase):
+            file_url = _upload_file_to_storage(
+                Path("sample.jpg"),
+                "job-id",
+                "certificates",
+            )
+
+        self.assertEqual(file_url, "https://signed.example/file.jpg")
+        self.assertEqual(bucket.uploaded_path, "job-id/sample.jpg")
+        self.assertEqual(bucket.signed_path, "job-id/sample.jpg")
+
+    def test_storage_upload_falls_back_to_public_url_when_signed_url_is_unavailable(self):
+        from backend.app.verifications import _upload_file_to_storage
+
+        bucket = _FakeStorageBucket(
+            signed_response={},
+            public_url="https://public.example/file.jpg",
+        )
+        supabase = _FakeStorageSupabase(bucket)
+
+        with patch("backend.app.verifications.has_supabase_config", return_value=True), \
+                patch("backend.app.verifications.get_supabase", return_value=supabase):
+            file_url = _upload_file_to_storage(
+                Path("sample.jpg"),
+                "job-id",
+                "certificates",
+            )
+
+        self.assertEqual(file_url, "https://public.example/file.jpg")
+
 
 class _FakeSupabase:
     def __init__(self, select_data):
@@ -352,6 +393,42 @@ class _ErroringSupabase:
 
     def execute(self):
         raise self.error
+
+
+class _FakeStorageSupabase:
+    def __init__(self, bucket):
+        self.storage = _FakeStorage(bucket)
+
+
+class _FakeStorage:
+    def __init__(self, bucket):
+        self.bucket = bucket
+
+    def from_(self, bucket_name):
+        self.bucket.bucket_name = bucket_name
+        return self.bucket
+
+
+class _FakeStorageBucket:
+    def __init__(self, signed_response, public_url):
+        self.signed_response = signed_response
+        self.public_url = public_url
+        self.uploaded_path = None
+        self.signed_path = None
+
+    def upload(self, storage_path, file_path):
+        self.uploaded_path = storage_path
+        self.uploaded_file_path = file_path
+        return SimpleNamespace(error=None)
+
+    def create_signed_url(self, storage_path, expires_in):
+        self.signed_path = storage_path
+        self.signed_expires_in = expires_in
+        return self.signed_response
+
+    def get_public_url(self, storage_path):
+        self.public_path = storage_path
+        return self.public_url
 
 
 if __name__ == "__main__":
