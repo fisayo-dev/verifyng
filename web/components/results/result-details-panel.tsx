@@ -20,6 +20,7 @@ interface ResultDetailsPanelProps {
   isPolling: boolean;
   pollError: string | null;
   onRetry: () => void;
+  sessionStatus: string | null;
 }
 
 const formatLayerName = (value: string) =>
@@ -29,16 +30,44 @@ const formatLayerName = (value: string) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
+const ANALYSIS_FLAG_PREFIXES = ["AI evidence:", "ML classifier:"] as const;
+
+const splitFlags = (flags: string[]) =>
+  flags.reduce(
+    (acc, flag) => {
+      const isAnalysisDetail = ANALYSIS_FLAG_PREFIXES.some((prefix) =>
+        flag.startsWith(prefix),
+      );
+
+      if (isAnalysisDetail) {
+        acc.analysis.push(flag);
+        return acc;
+      }
+
+      acc.flags.push(flag);
+      return acc;
+    },
+    { flags: [] as string[], analysis: [] as string[] },
+  );
+
 const ResultDetailsPanel = ({
   jobId,
   result,
   isPolling,
   pollError,
   onRetry,
+  sessionStatus,
 }: ResultDetailsPanelProps) => {
   const isComplete = isVerificationComplete(result);
   const isFailed = isVerificationFailed(result);
   const flags = result?.flags ?? [];
+  const { flags: visibleFlags, analysis } = splitFlags(flags);
+  const currentStatus = result?.status ?? sessionStatus ?? (isPolling ? "PROCESSING" : "PENDING_PAYMENT");
+  const isTerminalFailed = currentStatus === "FAILED" || isFailed;
+  const isTerminalComplete = currentStatus === "COMPLETE" || isComplete;
+  const completeResult = isComplete ? result : null;
+  const layersRun = completeResult?.layers_run ?? [];
+  const hasLayers = layersRun.length > 0;
 
   return (
     <div className="app-container grid gap-8 pb-20">
@@ -66,21 +95,23 @@ const ResultDetailsPanel = ({
           </div>
           <div
             className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium ${
-              isComplete
+              isTerminalComplete
                 ? "bg-success-soft text-success"
-                : isFailed
+                : isTerminalFailed
                   ? "bg-danger-soft text-danger"
-                  : "bg-primary/10 text-primary"
+                  : currentStatus === "PAID"
+                    ? "bg-trust-blue-soft text-trust-blue"
+                    : "bg-primary/10 text-primary"
             }`}
           >
-            {isComplete ? (
+            {isTerminalComplete ? (
               <CheckBadgeIcon className="h-5 w-5" />
-            ) : isFailed ? (
+            ) : isTerminalFailed ? (
               <ExclamationTriangleIcon className="h-5 w-5" />
             ) : (
               <ClockIcon className="h-5 w-5" />
             )}
-            <span>{result?.status ?? (isPolling ? "POLLING" : "WAITING")}</span>
+            <span>{currentStatus}</span>
           </div>
         </div>
 
@@ -98,7 +129,7 @@ const ResultDetailsPanel = ({
           </div>
         ) : null}
 
-        {isComplete ? (
+        {isTerminalComplete ? (
           <div className="grid gap-5">
             <div className="grid gap-4 rounded-[1.75rem] bg-[linear-gradient(135deg,var(--trust-blue-soft),rgba(255,255,255,0.98))] p-5 md:grid-cols-[1.1fr_0.9fr]">
               <div className="grid gap-4">
@@ -108,14 +139,15 @@ const ResultDetailsPanel = ({
                 </div>
                 <div className="flex items-end gap-3">
                   <span className="text-6xl font-black leading-none text-trust-blue">
-                    {result.trust_score}
+                    {completeResult?.trust_score}
                   </span>
                   <span className="pb-2 text-sm font-medium uppercase tracking-[0.24em] text-trust-blue/70">
                     out of 100
                   </span>
                 </div>
                 <p className="max-w-xl text-sm text-foreground/75">
-                  {result.verdict} with {result.confidence.toLowerCase()} confidence.
+                  {completeResult?.verdict} with{" "}
+                  {completeResult?.confidence?.toLowerCase()} confidence.
                 </p>
               </div>
               <div className="grid gap-3 rounded-3xl bg-white/85 p-5">
@@ -125,14 +157,16 @@ const ResultDetailsPanel = ({
                     Verdict
                   </p>
                   <p className="mt-1 text-lg font-semibold text-success">
-                    {result.verdict}
+                    {completeResult?.verdict}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-gray">
                     Confidence
                   </p>
-                  <p className="mt-1 text-base font-semibold">{result.confidence}</p>
+                  <p className="mt-1 text-base font-semibold">
+                    {completeResult?.confidence}
+                  </p>
                 </div>
               </div>
             </div>
@@ -141,8 +175,8 @@ const ResultDetailsPanel = ({
               <div className="rounded-3xl border border-foreground/8 bg-background p-5">
                 <p className="text-sm font-semibold text-foreground">Flags</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {flags.length > 0 ? (
-                    flags.map((flag) => (
+                  {visibleFlags.length > 0 ? (
+                    visibleFlags.map((flag) => (
                       <span
                         key={flag}
                         className="rounded-full bg-warning-soft px-3 py-2 text-sm text-foreground"
@@ -157,27 +191,49 @@ const ResultDetailsPanel = ({
               </div>
               <div className="rounded-3xl border border-foreground/8 bg-background p-5">
                 <p className="text-sm font-semibold text-foreground">Layers run</p>
+                {hasLayers ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {layersRun.map((layer) => (
+                      <span
+                        key={layer}
+                        className="rounded-full bg-primary/10 px-3 py-2 text-sm text-primary"
+                      >
+                        {formatLayerName(layer)}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-gray">No analysis layers were returned.</p>
+                )}
+              </div>
+            </div>
+
+            {analysis.length > 0 ? (
+              <div className="rounded-3xl border border-trust-blue/10 bg-trust-blue-soft/60 p-5">
+                <p className="text-sm font-semibold text-trust-blue">
+                  Analysis Details
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {result.layers_run.map((layer) => (
+                  {analysis.map((flag) => (
                     <span
-                      key={layer}
-                      className="rounded-full bg-primary/10 px-3 py-2 text-sm text-primary"
+                      key={flag}
+                      className="rounded-full bg-white px-3 py-2 text-sm text-foreground shadow-sm"
                     >
-                      {formatLayerName(layer)}
+                      {flag}
                     </span>
                   ))}
                 </div>
               </div>
-            </div>
+            ) : null}
           </div>
         ) : null}
 
-        {isFailed ? (
+        {isTerminalFailed ? (
           <div className="grid gap-4 rounded-[1.75rem] border border-danger/20 bg-danger-soft p-5">
             <p className="text-lg font-semibold text-danger">Verification failed</p>
             <div className="flex flex-wrap gap-2">
-              {flags.length > 0 ? (
-                flags.map((flag) => (
+              {visibleFlags.length > 0 ? (
+                visibleFlags.map((flag) => (
                   <span
                     key={flag}
                     className="rounded-full bg-white px-3 py-2 text-sm text-danger"
@@ -191,6 +247,23 @@ const ResultDetailsPanel = ({
                 </p>
               )}
             </div>
+            {analysis.length > 0 ? (
+              <div className="rounded-3xl bg-white/70 p-4">
+                <p className="text-sm font-semibold text-foreground">
+                  Analysis Details
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {analysis.map((flag) => (
+                    <span
+                      key={flag}
+                      className="rounded-full bg-danger-soft px-3 py-2 text-sm text-danger"
+                    >
+                      {flag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
