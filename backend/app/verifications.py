@@ -77,7 +77,7 @@ async def verify_certificate(file: UploadFile = File(...)):
         "job_id": job_id,
         "checkout_url": checkout_url,
         "status": "PENDING_PAYMENT",
-        "poll_url": f"https://olatunjitobi-verifyng-api.hf.space/ws/check_file_status/{job_id}",
+        "poll_url": f"https://olatunjitobi-verifyng-api.hf.space/api/ws/check_file_status/{job_id}",
     }
     
 
