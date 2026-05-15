@@ -38,6 +38,7 @@ async def initiate_payment(
         "email": email,
         "currency": "NGN",
         "initiate_type": "inline",
+        "callback_url": f"https://verifyng-three.vercel.app/results/{verification_id}",  # Update this to your actual callback URL
         # "transaction_ref": transaction_ref,
         # "callback_url": WEBHOOK_URL,
     }
