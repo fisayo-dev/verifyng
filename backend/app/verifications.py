@@ -50,14 +50,14 @@ async def verify_certificate(file: UploadFile = File(...)):
         logger.error("Failed to create verification job: %s", exc)
         raise HTTPException(status_code=500, detail="Unable to create verification job")
 
-    
-    
+    checkout_url = ""
+
     if os.getenv("SQUAD_API_KEY"):
         try:
             from .payments import initiate_payment
 
             payment_response = await initiate_payment(
-                amount=500,
+                amount=50000,
                 email="customer@example.com",
                 verification_id=job_id,
             )
@@ -66,7 +66,6 @@ async def verify_certificate(file: UploadFile = File(...)):
                 or payment_response.get("data", {}).get("checkout_url", "")
                 or ""
             )
-            squad_ref = payment_response.get("transaction_ref")
         except HTTPException:
             raise
         except Exception as exc:
@@ -77,7 +76,7 @@ async def verify_certificate(file: UploadFile = File(...)):
         "job_id": job_id,
         "checkout_url": checkout_url,
         "status": "PENDING_PAYMENT",
-        "poll_url": f"https://olatunjitobi-verifyng-api.hf.space/ws/check_file_status/{job_id}",
+        "poll_url": f"https://olatunjitobi-verifyng-api.hf.space/api/result/{job_id}",
     }
     
 

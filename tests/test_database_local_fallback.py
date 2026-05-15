@@ -2,6 +2,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from postgrest.exceptions import APIError
+
 from backend.app import database
 
 
@@ -116,6 +118,25 @@ class LocalDatabaseFallbackTests(unittest.TestCase):
 
         self.assertEqual(result, existing)
         table.insert.assert_not_called()
+
+    def test_missing_supabase_verification_result_returns_none(self):
+        table = Mock()
+        table.select.return_value.eq.return_value.single.return_value.execute.side_effect = APIError({
+            "code": "PGRST116",
+            "details": "The result contains 0 rows",
+            "hint": None,
+            "message": "Cannot coerce the result to a single JSON object",
+        })
+
+        with patch.dict("os.environ", {
+            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+        }, clear=True), patch("backend.app.database.get_supabase") as get_supabase:
+            get_supabase.return_value.table.return_value = table
+
+            result = database.get_verification_result("missing-job")
+
+        self.assertIsNone(result)
 
     def test_backend_env_path_is_known(self):
         self.assertTrue(database.BACKEND_ENV_PATH.endswith("backend\\.env"))

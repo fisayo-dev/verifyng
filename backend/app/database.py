@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
+from postgrest.exceptions import APIError
 from supabase import Client, create_client
 
 BACKEND_ENV_PATH = str(Path(__file__).resolve().parents[1] / ".env")
@@ -163,13 +164,26 @@ def get_verification_result(job_id: str) -> dict:
 
     supabase = get_supabase()
 
-    result = supabase.table("verifications")\
-        .select("*, payments(*)")\
-        .eq("id", job_id)\
-        .single()\
-        .execute()
+    try:
+        result = supabase.table("verifications")\
+            .select("*, payments(*)")\
+            .eq("id", job_id)\
+            .single()\
+            .execute()
+    except APIError as exc:
+        if is_missing_single_row_error(exc):
+            return None
+        raise
 
     return result.data if result.data else None
+
+
+def is_missing_single_row_error(exc: Exception) -> bool:
+    """Return True when Supabase/PostgREST reports zero rows for .single()."""
+    return (
+        isinstance(exc, APIError)
+        and getattr(exc, "code", None) == "PGRST116"
+    )
 
 
 def create_payment_record(squad_ref: str, verification_id: str) -> dict:
