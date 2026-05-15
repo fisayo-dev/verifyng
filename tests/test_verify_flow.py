@@ -17,7 +17,7 @@ class VerifyFlowTests(unittest.TestCase):
         self.assertEqual(client.get("/health").status_code, 200)
         self.assertEqual(client.post("/verify").status_code, 404)
         self.assertEqual(client.post("/api/verify").status_code, 422)
-        self.assertEqual(client.post("/api/webhook/squad").status_code, 404)
+        self.assertEqual(client.post("/api/webhook/squad").status_code, 422)
         self.assertEqual(client.post(f"/trigger/{uuid.uuid4()}").status_code, 404)
 
     def test_verify_upload_returns_job_and_api_poll_url_without_squad_key(self):
