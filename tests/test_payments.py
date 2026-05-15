@@ -146,6 +146,7 @@ class PaymentsTests(unittest.IsolatedAsyncioTestCase):
             request_payload["callback_url"],
             "https://api.example.com/api/payment/callback",
         )
+        self.assertEqual(http_client.post.call_args.kwargs["timeout"], 10.0)
 
     def test_payment_callback_marks_paid_queues_pipeline_and_redirects_to_result(self):
         verification_id = "550e8400-e29b-41d4-a716-446655440000"

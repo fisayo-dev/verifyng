@@ -52,7 +52,7 @@ async def initiate_payment(
 
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(url, headers=headers, json=data)
+            response = await client.post(url, headers=headers, json=data, timeout=10.0)
             response.raise_for_status()
             payload = response.json()
             response_data = payload.get("data", {}) if isinstance(payload, dict) else {}
