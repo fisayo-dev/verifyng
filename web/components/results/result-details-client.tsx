@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ResultDetailsPanel from "@/components/results/result-details-panel";
-import { getVerificationResult } from "@/lib/verification";
+import {
+  getStoredVerificationSession,
+  getVerificationResult,
+  updateVerificationSession,
+} from "@/lib/verification";
+import { isTerminalVerificationStatus } from "@/types/verification";
 import type { VerificationResult } from "@/types/verification";
 
 const POLL_INTERVAL_MS = 3000;
@@ -12,63 +18,115 @@ interface ResultDetailsClientProps {
 }
 
 const ResultDetailsClient = ({ jobId }: ResultDetailsClientProps) => {
+  const searchParams = useSearchParams();
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(true);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollJobRef = useRef<(nextJobId: string) => Promise<void>>(async () => {});
+  const [pollUrl, setPollUrl] = useState<string | null>(null);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
 
-  const clearScheduledPoll = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+  useEffect(() => {
+    const directPollUrl = searchParams.get("poll_url");
+
+    if (directPollUrl) {
+      queueMicrotask(() => {
+        setPollUrl(directPollUrl);
+        setSessionStatus(searchParams.get("status"));
+      });
+      return;
     }
-  }, []);
 
-  const pollJob = useCallback(async (nextJobId: string): Promise<void> => {
-    try {
-      const nextResult = await getVerificationResult(nextJobId);
+    queueMicrotask(() => {
+      const session = getStoredVerificationSession(jobId);
 
-      setResult(nextResult);
-      setPollError(null);
-
-      if (
-        nextResult.status === "COMPLETE" ||
-        nextResult.status === "FAILED"
-      ) {
+      if (!session) {
         setIsPolling(false);
+        setPollError(
+          "No saved verification session was found for this job. Start from the upload page so the app can recover the poll URL.",
+        );
         return;
       }
 
-      timeoutRef.current = setTimeout(() => {
-        void pollJobRef.current(nextJobId);
-      }, POLL_INTERVAL_MS);
-    } catch (error) {
-      setIsPolling(false);
-      setPollError("Unable to reach the result endpoint. Check the job ID and try again.");
-      console.error(error);
+      setPollUrl(session.poll_url);
+      setSessionStatus(session.status);
+    });
+  }, [jobId, searchParams]);
+
+  useEffect(() => {
+    if (!pollUrl) {
+      return;
     }
-  }, []);
 
-  useEffect(() => {
-    pollJobRef.current = pollJob;
-  }, [pollJob]);
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-  const beginPolling = useCallback(() => {
-    clearScheduledPoll();
-    setResult(null);
-    setPollError(null);
-    setIsPolling(true);
-    void pollJobRef.current(jobId);
-  }, [clearScheduledPoll, jobId]);
+    const poll = async () => {
+      try {
+        const nextResult = await getVerificationResult(pollUrl);
 
-  useEffect(() => {
-    void pollJobRef.current(jobId);
+        if (cancelled) {
+          return;
+        }
+
+        setResult(nextResult);
+        setPollError(null);
+        setSessionStatus(nextResult.status);
+
+        if (isTerminalVerificationStatus(nextResult.status)) {
+          updateVerificationSession(jobId, {
+            status: nextResult.status,
+          });
+        }
+
+        if (isTerminalVerificationStatus(nextResult.status)) {
+          setIsPolling(false);
+          return;
+        }
+
+        timeoutId = setTimeout(() => {
+          void poll();
+        }, POLL_INTERVAL_MS);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setIsPolling(false);
+        setPollError(
+          "Unable to reach the poll endpoint. Please try again in a few moments.",
+        );
+        console.error(error);
+      }
+    };
+
+    void poll();
 
     return () => {
-      clearScheduledPoll();
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
-  }, [clearScheduledPoll, jobId]);
+  }, [jobId, pollUrl]);
+
+  const beginPolling = () => {
+    setResult(null);
+    setPollError(null);
+
+    const session = getStoredVerificationSession(jobId);
+
+    if (session?.poll_url) {
+      setPollUrl(session.poll_url);
+      setSessionStatus(session.status);
+      setIsPolling(true);
+      return;
+    }
+
+    setIsPolling(false);
+    setPollError(
+      "No saved verification session was found for this job. Start from the upload page so the app can recover the poll URL.",
+    );
+  };
 
   return (
     <ResultDetailsPanel
@@ -77,6 +135,7 @@ const ResultDetailsClient = ({ jobId }: ResultDetailsClientProps) => {
       isPolling={isPolling}
       pollError={pollError}
       onRetry={beginPolling}
+      sessionStatus={sessionStatus}
     />
   );
 };
