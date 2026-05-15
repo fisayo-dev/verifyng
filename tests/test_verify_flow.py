@@ -139,6 +139,34 @@ class VerifyFlowTests(unittest.TestCase):
             "report_url": "https://example.com/report.pdf",
         })
 
+    def test_result_normalizes_lowercase_completed_status(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "completed",
+            "trust_score": 47,
+            "verdict": "SUSPICIOUS",
+            "flags": ["AI evidence: visual=45"],
+            "confidence": "MEDIUM",
+            "layers_run": ["visual_forensics"],
+            "report_url": None,
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "verification_id": job_id,
+            "status": "COMPLETE",
+            "trust_score": 47,
+            "verdict": "SUSPICIOUS",
+            "flags": ["AI evidence: visual=45"],
+            "confidence": "MEDIUM",
+            "layers_run": ["visual_forensics"],
+            "report_url": None,
+        })
+
     def test_result_returns_404_when_job_is_missing(self):
         job_id = str(uuid.uuid4())
         supabase = _FakeSupabase(select_data=None)
