@@ -47,11 +47,11 @@ def get_supabase() -> Client:
     return create_client(url, key)
 
 
-def create_verification_job(file_hash: str, file_name: str) -> dict:
+def create_verification_job(file_name: str, temp_file_path: str) -> dict:
     """Create a new verification job in pending state."""
     if not has_supabase_config():
         for existing in _LOCAL_VERIFICATIONS.values():
-            if existing["file_hash"] == file_hash:
+            if existing["file_name"] == file_name:
                 return {
                     "job_id": existing["id"],
                     "cached": True,
@@ -61,8 +61,9 @@ def create_verification_job(file_hash: str, file_name: str) -> dict:
         job_id = str(uuid.uuid4())
         job = {
             "id": job_id,
-            "file_hash": file_hash,
+            "file_hash": file_name,
             "file_name": file_name,
+            "temp_file_path": temp_file_path,
             "status": "pending",
         }
         _LOCAL_VERIFICATIONS[job_id] = job
@@ -76,7 +77,7 @@ def create_verification_job(file_hash: str, file_name: str) -> dict:
 
     existing = supabase.table("verifications")\
         .select("*")\
-        .eq("file_hash", file_hash)\
+        .eq("file_name", file_name)\
         .execute()
 
     if existing.data:
@@ -87,8 +88,9 @@ def create_verification_job(file_hash: str, file_name: str) -> dict:
         }
 
     result = supabase.table("verifications").insert({
-        "file_hash": file_hash,
+        "file_hash": file_name,
         "file_name": file_name,
+        "temp_file_path": temp_file_path,
         "status": "pending",
     }).execute()
 
@@ -204,26 +206,41 @@ def create_payment_record(squad_ref: str, verification_id: str) -> dict:
 
 
 def confirm_payment(squad_ref: str) -> dict:
-    """Mark payment as confirmed."""
+    """Mark payment as confirmed after successful Squad verification."""
     if not has_supabase_config():
         payment = _LOCAL_PAYMENTS.get(squad_ref)
         if not payment:
-            return {}
+            return None
 
-        payment.update({
-            "status": "confirmed",
-            "updated_at": "now()",
-        })
+        payment["status"] = "confirmed"
         return payment
 
     supabase = get_supabase()
 
-    result = supabase.table("payments").update({
+    updated = supabase.table("payments").update({
         "status": "confirmed",
-        "updated_at": "now()",
     }).eq("squad_ref", squad_ref).execute()
 
-    return result.data[0] if result.data else {}
+    return updated.data[0] if updated.data else None
+
+
+def get_payment_by_squad_ref(squad_ref: str) -> dict:
+    """Fetch payment record by squad_ref."""
+    if not has_supabase_config():
+        payment = _LOCAL_PAYMENTS.get(squad_ref)
+        if not payment:
+            return None
+        return payment
+
+    supabase = get_supabase()
+
+    result = supabase.table("payments")\
+        .select("*")\
+        .eq("squad_ref", squad_ref)\
+        .single()\
+        .execute()
+
+    return result.data if result.data else None
 
 
 def get_institution_formats() -> list:
