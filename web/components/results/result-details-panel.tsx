@@ -149,7 +149,7 @@ const ResultDetailsPanel = ({
                   {completeResult?.confidence?.toLowerCase()} confidence.
                 </p>
               </div>
-              <div className="grid gap-3 rounded-3xl bg-white/85 p-5">
+              <div className="grid gap-3 rounded-3xl bg-white/85 border border-foreground/20 p-5">
                 <p className="text-sm font-medium text-gray">
                   Analysis details
                 </p>
