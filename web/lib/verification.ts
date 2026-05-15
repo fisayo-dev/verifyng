@@ -5,22 +5,18 @@ import type {
   VerificationResult,
   VerificationStatus,
 } from "@/types/verification";
-import { normalizeVerificationStatus } from "@/types/verification";
-import axios from "axios";
+import {
+  isTerminalVerificationStatus,
+  normalizeVerificationStatus,
+} from "@/types/verification";
 
 const VERIFICATION_SESSION_PREFIX = "verifyng:verification:";
 
 const resolvePollUrl = (pollUrl: string) => pollUrl.trim();
 
-export const getStoredVerificationSession = (jobId: string) => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const rawValue = window.localStorage.getItem(
-    `${VERIFICATION_SESSION_PREFIX}${jobId}`,
-  );
-
+const readStoredVerificationSession = (
+  rawValue: string | null,
+): StoredVerificationSession | null => {
   if (!rawValue) {
     return null;
   }
@@ -30,6 +26,16 @@ export const getStoredVerificationSession = (jobId: string) => {
   } catch {
     return null;
   }
+};
+
+export const getStoredVerificationSession = (jobId: string) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return readStoredVerificationSession(
+    window.localStorage.getItem(`${VERIFICATION_SESSION_PREFIX}${jobId}`),
+  );
 };
 
 export const storeVerificationSession = (
@@ -49,6 +55,71 @@ export const storeVerificationSession = (
     `${VERIFICATION_SESSION_PREFIX}${session.job_id}`,
     JSON.stringify(payload),
   );
+};
+
+export const updateVerificationSession = (
+  jobId: string,
+  patch: Partial<StoredVerificationSession>,
+) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const existingSession = getStoredVerificationSession(jobId);
+
+  if (!existingSession) {
+    return null;
+  }
+
+  const nextSession: StoredVerificationSession = {
+    ...existingSession,
+    ...patch,
+    saved_at: new Date().toISOString(),
+  };
+
+  window.localStorage.setItem(
+    `${VERIFICATION_SESSION_PREFIX}${jobId}`,
+    JSON.stringify(nextSession),
+  );
+
+  return nextSession;
+};
+
+export const getLatestStoredVerificationSession = (
+  onlyTerminal = false,
+) => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  let latestSession: StoredVerificationSession | null = null;
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+
+    if (!key || !key.startsWith(VERIFICATION_SESSION_PREFIX)) {
+      continue;
+    }
+
+    const session = readStoredVerificationSession(window.localStorage.getItem(key));
+
+    if (!session) {
+      continue;
+    }
+
+    if (onlyTerminal && !isTerminalVerificationStatus(session.status)) {
+      continue;
+    }
+
+    if (
+      !latestSession ||
+      new Date(session.saved_at).getTime() > new Date(latestSession.saved_at).getTime()
+    ) {
+      latestSession = session;
+    }
+  }
+
+  return latestSession;
 };
 
 export const clearVerificationSession = (jobId: string) => {
@@ -80,7 +151,6 @@ export const submitVerificationDocument = async (
 export const getVerificationResult = async (
   pollUrl: string,
 ): Promise<VerificationResult> => {
-  console.log("POLL URL", pollUrl)
   const response = await api.get<VerificationResult>(resolvePollUrl(pollUrl));
   const result = response.data;
 
