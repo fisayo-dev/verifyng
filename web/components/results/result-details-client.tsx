@@ -61,7 +61,7 @@ const ResultDetailsClient = ({ jobId }: ResultDetailsClientProps) => {
 
     const poll = async () => {
       try {
-        const nextResult = await getVerificationResult(pollUrl, jobId);
+        const nextResult = await getVerificationResult(pollUrl);
 
         if (cancelled) {
           return;

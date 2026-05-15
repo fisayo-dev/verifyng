@@ -79,7 +79,6 @@ export const submitVerificationDocument = async (
 
 export const getVerificationResult = async (
   pollUrl: string,
-  jobId: string,
 ): Promise<VerificationResult> => {
   console.log("POLL URL", pollUrl)
   const response = await api.get<VerificationResult>(resolvePollUrl(pollUrl));
