@@ -1,5 +1,6 @@
 import unittest
 import uuid
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -17,7 +18,7 @@ class VerifyFlowTests(unittest.TestCase):
         self.assertEqual(client.get("/health").status_code, 200)
         self.assertEqual(client.post("/verify").status_code, 404)
         self.assertEqual(client.post("/api/verify").status_code, 422)
-        self.assertEqual(client.post("/api/webhook/squad").status_code, 404)
+        self.assertEqual(client.post("/api/webhook/squad").status_code, 422)
         self.assertEqual(client.post(f"/trigger/{uuid.uuid4()}").status_code, 404)
 
     def test_verify_upload_returns_job_and_api_poll_url_without_squad_key(self):
@@ -41,6 +42,36 @@ class VerifyFlowTests(unittest.TestCase):
             payload["poll_url"],
             f"https://olatunjitobi-verifyng-api.hf.space/api/result/{payload['job_id']}",
         )
+
+    def test_verify_upload_initiates_squad_payment_in_kobo(self):
+        from backend.app.database import reset_local_store
+
+        reset_local_store()
+        captured = {}
+
+        async def fake_initiate_payment(amount, email, verification_id):
+            captured.update({
+                "amount": amount,
+                "email": email,
+                "verification_id": verification_id,
+            })
+            return {
+                "data": {
+                    "checkout_url": "https://checkout.squadco.com/test",
+                }
+            }
+
+        with patch.dict("os.environ", {"SQUAD_API_KEY": "sandbox-key"}, clear=True), \
+                patch("backend.app.payments.initiate_payment", side_effect=fake_initiate_payment):
+            response = client.post(
+                "/api/verify",
+                files={"file": ("sample.jpg", b"sample bytes", "image/jpeg")},
+            )
+
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["amount"], 50000)
+        self.assertEqual(payload["checkout_url"], "https://checkout.squadco.com/test")
 
     def test_result_returns_processing_without_private_scores(self):
         job_id = str(uuid.uuid4())
@@ -107,6 +138,34 @@ class VerifyFlowTests(unittest.TestCase):
             "confidence": "HIGH",
             "layers_run": ["visual_forensics", "content_validation"],
             "report_url": "https://example.com/report.pdf",
+        })
+
+    def test_result_normalizes_lowercase_completed_status(self):
+        job_id = str(uuid.uuid4())
+        supabase = _FakeSupabase(select_data={
+            "id": job_id,
+            "status": "completed",
+            "trust_score": 47,
+            "verdict": "SUSPICIOUS",
+            "flags": ["AI evidence: visual=45"],
+            "confidence": "MEDIUM",
+            "layers_run": ["visual_forensics"],
+            "report_url": None,
+        })
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            "verification_id": job_id,
+            "status": "COMPLETE",
+            "trust_score": 47,
+            "verdict": "SUSPICIOUS",
+            "flags": ["AI evidence: visual=45"],
+            "confidence": "MEDIUM",
+            "layers_run": ["visual_forensics"],
+            "report_url": None,
         })
 
     def test_result_returns_404_when_job_is_missing(self):
@@ -250,6 +309,71 @@ class VerifyFlowTests(unittest.TestCase):
         self.assertEqual(supabase.updated, {"status": "PROCESSING"})
         self.assertEqual(queued, [job_id])
 
+    def test_storage_upload_prefers_signed_url_for_pipeline_downloads(self):
+        from backend.app.verifications import _upload_file_to_storage
+
+        bucket = _FakeStorageBucket(
+            signed_response={"signedURL": "https://signed.example/file.jpg"},
+            public_url="https://public.example/file.jpg",
+        )
+        supabase = _FakeStorageSupabase(bucket)
+
+        with patch("backend.app.verifications.has_supabase_config", return_value=True), \
+                patch("backend.app.verifications.get_supabase", return_value=supabase):
+            file_url = _upload_file_to_storage(
+                Path("sample.jpg"),
+                "job-id",
+                "certificates",
+            )
+
+        self.assertEqual(file_url, "https://signed.example/file.jpg")
+        self.assertEqual(bucket.uploaded_path, "job-id/sample.jpg")
+        self.assertEqual(bucket.signed_path, "job-id/sample.jpg")
+
+    def test_storage_upload_falls_back_to_public_url_when_signed_url_is_unavailable(self):
+        from backend.app.verifications import _upload_file_to_storage
+
+        bucket = _FakeStorageBucket(
+            signed_response={},
+            public_url="https://public.example/file.jpg",
+        )
+        supabase = _FakeStorageSupabase(bucket)
+
+        with patch("backend.app.verifications.has_supabase_config", return_value=True), \
+                patch("backend.app.verifications.get_supabase", return_value=supabase):
+            file_url = _upload_file_to_storage(
+                Path("sample.jpg"),
+                "job-id",
+                "certificates",
+            )
+
+        self.assertEqual(file_url, "https://public.example/file.jpg")
+
+    def test_storage_upload_expands_relative_signed_url(self):
+        from backend.app.verifications import _upload_file_to_storage
+
+        bucket = _FakeStorageBucket(
+            signed_response={
+                "signedURL": "/storage/v1/object/sign/certificates/job-id/sample.jpg?token=abc"
+            },
+            public_url="https://public.example/file.jpg",
+        )
+        supabase = _FakeStorageSupabase(bucket)
+
+        with patch.dict("os.environ", {"SUPABASE_URL": "https://project.supabase.co"}, clear=True), \
+                patch("backend.app.verifications.has_supabase_config", return_value=True), \
+                patch("backend.app.verifications.get_supabase", return_value=supabase):
+            file_url = _upload_file_to_storage(
+                Path("sample.jpg"),
+                "job-id",
+                "certificates",
+            )
+
+        self.assertEqual(
+            file_url,
+            "https://project.supabase.co/storage/v1/object/sign/certificates/job-id/sample.jpg?token=abc",
+        )
+
 
 class _FakeSupabase:
     def __init__(self, select_data):
@@ -294,6 +418,42 @@ class _ErroringSupabase:
 
     def execute(self):
         raise self.error
+
+
+class _FakeStorageSupabase:
+    def __init__(self, bucket):
+        self.storage = _FakeStorage(bucket)
+
+
+class _FakeStorage:
+    def __init__(self, bucket):
+        self.bucket = bucket
+
+    def from_(self, bucket_name):
+        self.bucket.bucket_name = bucket_name
+        return self.bucket
+
+
+class _FakeStorageBucket:
+    def __init__(self, signed_response, public_url):
+        self.signed_response = signed_response
+        self.public_url = public_url
+        self.uploaded_path = None
+        self.signed_path = None
+
+    def upload(self, storage_path, file_path):
+        self.uploaded_path = storage_path
+        self.uploaded_file_path = file_path
+        return SimpleNamespace(error=None)
+
+    def create_signed_url(self, storage_path, expires_in):
+        self.signed_path = storage_path
+        self.signed_expires_in = expires_in
+        return self.signed_response
+
+    def get_public_url(self, storage_path):
+        self.public_path = storage_path
+        return self.public_url
 
 
 if __name__ == "__main__":

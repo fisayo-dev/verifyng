@@ -38,7 +38,7 @@ def get_result(verification_id: str):
         })
 
     data = record.data
-    status = data.get("status")
+    status = _normalize_status(data.get("status"))
 
     if status == "FAILED":
         return {
@@ -161,3 +161,12 @@ def _raise_not_found_if_invalid_uuid(
             "error": "NOT_FOUND",
             "message": message,
         })
+
+
+def _normalize_status(status: str | None) -> str:
+    normalized = (status or "PROCESSING").upper()
+    if normalized == "COMPLETED":
+        return "COMPLETE"
+    if normalized == "PENDING":
+        return "PENDING_PAYMENT"
+    return normalized
