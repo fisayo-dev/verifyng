@@ -4,10 +4,15 @@
     --background: #f9fafb;
     --foreground: #171717;
     --primary: #0066cc;
+    --trust-blue: #1d4ed8;
+    --trust-blue-soft: #dbeafe;
     --muted: #a8b6ac;
     --success: #10b981;
+    --success-soft: #d1fae5;
     --warning: #f59e0b;
+    --warning-soft: #fef3c7;
     --danger: #ef4444;
+    --danger-soft: #fee2e2;
     --gray: #6b7280;
 }
 
@@ -19,9 +24,14 @@
     --color-muted: var(--muted);
     --color-gray: var(--gray);
     --color-primary: var(--primary);
+    --color-trust-blue: var(--trust-blue);
+    --color-trust-blue-soft: var(--trust-blue-soft);
     --color-danger: var(--danger);
+    --color-danger-soft: var(--danger-soft);
     --color-success: var(--success);
+    --color-success-soft: var(--success-soft);
     --color-warning: var(--warning);
+    --color-warning-soft: var(--warning-soft);
 }
 
 body {

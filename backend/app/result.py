@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
-from .database import get_supabase
+from .database import get_supabase, is_missing_single_row_error
 from .pipeline import trigger_ai_pipeline
 
 router = APIRouter()
@@ -17,11 +17,19 @@ def get_result(verification_id: str):
     _raise_not_found_if_invalid_uuid(verification_id)
     supabase = get_supabase()
 
-    record = supabase.table("verifications")\
-        .select("*")\
-        .eq("id", verification_id)\
-        .single()\
-        .execute()
+    try:
+        record = supabase.table("verifications")\
+            .select("*")\
+            .eq("id", verification_id)\
+            .single()\
+            .execute()
+    except Exception as exc:
+        if is_missing_single_row_error(exc):
+            raise HTTPException(status_code=404, detail={
+                "error": "NOT_FOUND",
+                "message": "Verification ID not found",
+            })
+        raise
 
     if not record.data:
         raise HTTPException(status_code=404, detail={
