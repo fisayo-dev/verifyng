@@ -169,11 +169,51 @@ def _upload_file_to_storage(
             f"Supabase storage upload failed: {error_detail}"
         )
 
+    signed_url = _create_signed_storage_url(bucket, storage_path)
+    if signed_url:
+        return signed_url
+
     public_url = bucket.get_public_url(storage_path)
     if not public_url:
         raise RuntimeError("Unable to generate public URL for uploaded file")
 
     return public_url
+
+
+def _create_signed_storage_url(bucket, storage_path: str) -> Optional[str]:
+    """Prefer a signed URL so private Supabase buckets can be downloaded."""
+    try:
+        response = bucket.create_signed_url(storage_path, 3600)
+    except Exception as exc:
+        logger.warning("Could not create signed Supabase URL: %s", exc)
+        return None
+
+    if isinstance(response, dict):
+        signed_url = (
+            response.get("signedURL")
+            or response.get("signedUrl")
+            or response.get("signed_url")
+        )
+        return _absolute_storage_url(signed_url)
+
+    signed_url = (
+        getattr(response, "signedURL", None)
+        or getattr(response, "signedUrl", None)
+        or getattr(response, "signed_url", None)
+    )
+    return _absolute_storage_url(signed_url)
+
+
+def _absolute_storage_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
+        if supabase_url:
+            return f"{supabase_url}{url}"
+    return url
 
 
 def _update_verification_record(verification_id: str, file_url: str) -> dict:

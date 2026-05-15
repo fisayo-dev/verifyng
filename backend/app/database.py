@@ -50,11 +50,13 @@ def get_supabase() -> Client:
 
 def create_verification_job(file_name: str, temp_file_path: str) -> dict:
     """Create a new verification job in pending state."""
+    file_hash = _build_upload_identity(file_name, temp_file_path)
+
     if not has_supabase_config():
         job_id = str(uuid.uuid4())
         job = {
             "id": job_id,
-            "file_hash": file_name,
+            "file_hash": file_hash,
             "file_name": file_name,
             "temp_file_path": temp_file_path,
             "status": "pending",
@@ -69,7 +71,7 @@ def create_verification_job(file_name: str, temp_file_path: str) -> dict:
     supabase = get_supabase()
 
     result = supabase.table("verifications").insert({
-        "file_hash": file_name,
+        "file_hash": file_hash,
         "file_name": file_name,
         "temp_file_path": temp_file_path,
         "status": "pending",
@@ -80,6 +82,12 @@ def create_verification_job(file_name: str, temp_file_path: str) -> dict:
         "cached": False,
         "data": result.data[0],
     }
+
+
+def _build_upload_identity(file_name: str, temp_file_path: str) -> str:
+    """Create a per-upload identity without reusing the display filename."""
+    upload_token = Path(temp_file_path).name or str(uuid.uuid4())
+    return f"{file_name}:{upload_token}"
 
 
 def update_verification_result(verification_id: str, result: dict) -> dict:

@@ -111,6 +111,10 @@ class LocalDatabaseFallbackTests(unittest.TestCase):
         self.assertEqual(result["job_id"], "new-job")
         self.assertFalse(result["cached"])
         table.insert.assert_called_once()
+        payload = table.insert.call_args.args[0]
+        self.assertEqual(payload["file_name"], "same-name.jpg")
+        self.assertNotEqual(payload["file_hash"], "same-name.jpg")
+        self.assertTrue(payload["file_hash"].startswith("same-name.jpg:"))
 
     def test_failed_verdict_maps_to_prd_failed_status(self):
         with patch.dict("os.environ", {}, clear=True):
