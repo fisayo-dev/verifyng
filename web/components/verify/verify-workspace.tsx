@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { ArrowRightIcon, DocumentIcon } from "@heroicons/react/24/outline";
 import {
   storeVerificationSession,
@@ -9,7 +8,6 @@ import {
 } from "@/lib/verification";
 import VerifyUploadDropzone from "@/components/verify/verify-upload-dropzone";
 
-const demoJobId = process.env.NEXT_PUBLIC_TEST_JOB_ID?.trim() ?? "";
 
 const VerifyWorkspace = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
