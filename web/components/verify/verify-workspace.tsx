@@ -23,22 +23,13 @@ const VerifyWorkspace = () => {
 
     setIsSubmitting(true);
     setSubmitError(null);
-    const checkoutWindow = window.open("", "_blank");
 
     try {
       const response = await submitVerificationDocument(selectedFile);
       storeVerificationSession(response);
-
-      if (checkoutWindow && !checkoutWindow.closed) {
-        checkoutWindow.location.href = response.checkout_url;
-        window.location.assign(`/results/${encodeURIComponent(response.job_id)}`);
-        return;
-      }
-
       window.location.assign(response.checkout_url);
     } catch (error) {
       console.error(error);
-      checkoutWindow?.close();
       setSubmitError(
         "Unable to start verification. Please try again with the same file.",
       );
