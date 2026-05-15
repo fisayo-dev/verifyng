@@ -180,7 +180,7 @@ const ResultDetailsPanel = ({
                     visibleFlags.map((flag) => (
                       <span
                         key={flag}
-                        className="rounded-full bg-warning-soft px-3 py-2 text-sm text-foreground"
+                        className="rounded-2xl bg-warning-soft px-3 py-2 text-sm text-foreground"
                       >
                         {flag}
                       </span>
