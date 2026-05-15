@@ -46,14 +46,24 @@ async def initiate_payment(
         try:
             response = await client.post(url, headers=headers, json=data)
             response.raise_for_status()
+            payload = response.json()
+            response_data = payload.get("data", {}) if isinstance(payload, dict) else {}
+            squad_ref = (
+                payload.get("transaction_ref")
+                or response_data.get("transaction_ref")
+                or response_data.get("reference")
+            )
+
+            if not squad_ref:
+                raise ValueError("Squad response did not include a transaction_ref")
 
             create_payment_record( 
-                squad_ref=response.json().get("transaction_ref"),
+                squad_ref=squad_ref,
                 verification_id=verification_id,
              )
 
 
-            return response.json()
+            return payload
         except httpx.HTTPStatusError as e:
             logger.error(f"Squad API error: {e.response.status_code} - {e.response.text}")
             raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
