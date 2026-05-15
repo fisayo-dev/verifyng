@@ -17,7 +17,7 @@ from .database import (
     _LOCAL_VERIFICATIONS,
 )
 from .pipeline import trigger_ai_pipeline
-from .payments import initiate_payment
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -25,7 +25,7 @@ router = APIRouter()
 DEFAULT_SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "certificates")
 
 
-@router.post("/verify")
+@router.post("/api/verify")
 async def verify_certificate(file: UploadFile = File(...)):
     """Upload certificate file, create verification and payment, then return checkout details."""
     if not file.filename:
