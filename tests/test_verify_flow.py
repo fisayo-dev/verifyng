@@ -42,6 +42,36 @@ class VerifyFlowTests(unittest.TestCase):
             f"https://olatunjitobi-verifyng-api.hf.space/api/result/{payload['job_id']}",
         )
 
+    def test_verify_upload_initiates_squad_payment_in_kobo(self):
+        from backend.app.database import reset_local_store
+
+        reset_local_store()
+        captured = {}
+
+        async def fake_initiate_payment(amount, email, verification_id):
+            captured.update({
+                "amount": amount,
+                "email": email,
+                "verification_id": verification_id,
+            })
+            return {
+                "data": {
+                    "checkout_url": "https://checkout.squadco.com/test",
+                }
+            }
+
+        with patch.dict("os.environ", {"SQUAD_API_KEY": "sandbox-key"}, clear=True), \
+                patch("backend.app.payments.initiate_payment", side_effect=fake_initiate_payment):
+            response = client.post(
+                "/api/verify",
+                files={"file": ("sample.jpg", b"sample bytes", "image/jpeg")},
+            )
+
+        payload = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["amount"], 50000)
+        self.assertEqual(payload["checkout_url"], "https://checkout.squadco.com/test")
+
     def test_result_returns_processing_without_private_scores(self):
         job_id = str(uuid.uuid4())
         supabase = _FakeSupabase(select_data={
