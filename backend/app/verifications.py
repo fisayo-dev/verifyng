@@ -57,7 +57,7 @@ async def verify_certificate(file: UploadFile = File(...)):
             from .payments import initiate_payment
 
             payment_response = await initiate_payment(
-                amount=500,
+                amount=50000,
                 email="customer@example.com",
                 verification_id=job_id,
             )
