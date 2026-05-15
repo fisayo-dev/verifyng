@@ -15,9 +15,31 @@ class VerifyFlowTests(unittest.TestCase):
     def test_main_only_exposes_owned_routes(self):
         self.assertEqual(client.get("/health").status_code, 200)
         self.assertEqual(client.post("/verify").status_code, 404)
-        self.assertEqual(client.post("/api/verify").status_code, 404)
+        self.assertEqual(client.post("/api/verify").status_code, 422)
         self.assertEqual(client.post("/api/webhook/squad").status_code, 404)
         self.assertEqual(client.post(f"/trigger/{uuid.uuid4()}").status_code, 404)
+
+    def test_verify_upload_returns_job_and_api_poll_url_without_squad_key(self):
+        from backend.app.database import reset_local_store
+
+        reset_local_store()
+        nonraising_client = TestClient(app, raise_server_exceptions=False)
+
+        with patch.dict("os.environ", {}, clear=True):
+            response = nonraising_client.post(
+                "/api/verify",
+                files={"file": ("sample.jpg", b"sample bytes", "image/jpeg")},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["job_id"])
+        self.assertEqual(payload["checkout_url"], "")
+        self.assertEqual(payload["status"], "PENDING_PAYMENT")
+        self.assertEqual(
+            payload["poll_url"],
+            f"https://olatunjitobi-verifyng-api.hf.space/api/result/{payload['job_id']}",
+        )
 
     def test_result_returns_processing_without_private_scores(self):
         job_id = str(uuid.uuid4())
