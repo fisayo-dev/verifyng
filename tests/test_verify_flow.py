@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from postgrest.exceptions import APIError
 
 from backend.app.main import app
 
@@ -111,6 +112,26 @@ class VerifyFlowTests(unittest.TestCase):
     def test_result_returns_404_when_job_is_missing(self):
         job_id = str(uuid.uuid4())
         supabase = _FakeSupabase(select_data=None)
+
+        with patch("backend.app.result.get_supabase", return_value=supabase):
+            response = client.get(f"/api/result/{job_id}")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {
+            "detail": {
+                "error": "NOT_FOUND",
+                "message": "Verification ID not found",
+            }
+        })
+
+    def test_result_returns_404_when_supabase_single_row_is_missing(self):
+        job_id = str(uuid.uuid4())
+        supabase = _ErroringSupabase(APIError({
+            "code": "PGRST116",
+            "details": "The result contains 0 rows",
+            "hint": None,
+            "message": "Cannot coerce the result to a single JSON object",
+        }))
 
         with patch("backend.app.result.get_supabase", return_value=supabase):
             response = client.get(f"/api/result/{job_id}")
@@ -253,6 +274,26 @@ class _FakeSupabase:
 
     def execute(self):
         return SimpleNamespace(data=self.select_data)
+
+
+class _ErroringSupabase:
+    def __init__(self, error):
+        self.error = error
+
+    def table(self, name):
+        return self
+
+    def select(self, columns):
+        return self
+
+    def eq(self, column, value):
+        return self
+
+    def single(self):
+        return self
+
+    def execute(self):
+        raise self.error
 
 
 if __name__ == "__main__":
